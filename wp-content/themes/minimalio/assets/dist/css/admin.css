@@ -1,0 +1,513 @@
+/* Minimalio Admin Styles */
+.minimalio-admin-page {
+  max-width: 1200px;
+}
+
+.minimalio-admin-page h1 {
+  color: #23282d;
+  margin-bottom: 20px;
+}
+
+.minimalio-admin-card h2 {
+  color: #23282d;
+  margin: 0 0 20px 0;
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+/* Admin Grid Layout */
+.minimalio-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 40px;
+  margin: 40px 0;
+}
+
+.minimalio-admin-card,
+.minimalio-admin-info {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 0;
+  padding: 30px;
+  text-align: left;
+  margin-bottom: 30px;
+}
+
+.minimalio-admin-card h3 {
+  margin: 0 0 15px 0;
+  color: #23282d;
+  font-size: 18px;
+}
+
+.minimalio-admin-card p {
+  color: #000;
+  margin-bottom: 20px;
+  line-height: 1.5;
+  font-size: 16px;
+}
+
+p.max-width-62 {
+  max-width: 62ch;
+}
+
+p.minimalio-inspire-text {
+  margin-top: 2em;
+  margin-bottom: 0.8em;
+}
+
+p.minimalio-moto {
+  margin-top: 0.5em;
+}
+
+/* Two column layout */
+.minimalio-two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  align-items: start;
+}
+
+.minimalio-column-video iframe {
+  border-radius: 0;
+}
+
+/* Tutorial button styling */
+.minimalio-tutorial-button {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.minimalio-tutorial-button:hover {
+  background: #f86d5b;
+  border-color: #f86d5b;
+  color: #fff;
+  box-shadow: none;
+}
+
+/* Admin page button styling - apply demo button styling to all admin page buttons */
+.minimalio-admin-page .button,
+.minimalio-admin-page .button-primary,
+.minimalio-admin-page .button-secondary,
+.minimalio-welcome-notice .button {
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  box-shadow: none;
+  text-shadow: none;
+  padding: 10px 20px !important;
+  font-size: 14px !important;
+}
+
+.minimalio-admin-page .button:hover,
+.minimalio-admin-page .button-primary:hover,
+.minimalio-admin-page .button-secondary:hover,
+.minimalio-welcome-notice .button:hover {
+  background: #f86d5b !important;
+  border-color: #f86d5b !important;
+  color: #fff !important;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.minimalio-admin-page .button {
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.minimalio-admin-page .button:last-child {
+  margin-right: 0;
+}
+
+.minimalio-premium-features {
+  background: transparent;
+  padding: 0;
+  border: none;
+  margin-bottom: 0;
+}
+
+.minimalio-premium-features ul {
+  color: #000;
+  margin: 2em 0;
+  line-height: 1.5;
+  font-size: 16px;
+  list-style-type: disc;
+  padding-left: 20px;
+}
+
+.minimalio-premium-features ul li {
+  margin-bottom: 10px;
+}
+
+.minimalio-premium-button {
+  background: #000 !important;
+  color: #fff !important;
+  border: 1px solid #000 !important;
+  margin-top: 20px;
+}
+
+.minimalio-welcome-notice .minimalio-premium-button {
+  margin-top: 10px;
+}
+
+.minimalio-admin-page .minimalio-premium-button:hover,
+.minimalio-welcome-notice .minimalio-premium-button:hover {
+  background: #f86d5b !important;
+  border-color: #f86d5b !important;
+  color: #fff !important;
+}
+
+/* Demos Page Styles */
+.minimalio-demos-intro {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 0;
+  margin-bottom: 30px;
+}
+
+.minimalio-demos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 30px;
+  margin: 30px 0;
+}
+
+.minimalio-demo-item {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.minimalio-demo-preview {
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #000;
+}
+
+.minimalio-demo-preview img {
+  width: 100%;
+  height: auto;
+  -o-object-fit: contain;
+     object-fit: contain;
+  display: block;
+}
+
+.minimalio-demo-info {
+  padding: 20px;
+}
+
+.minimalio-demo-info h3 {
+  margin: 0 0 10px 0;
+  color: #23282d;
+}
+
+.minimalio-demo-info p {
+  color: #000;
+  margin-bottom: 20px;
+}
+
+.minimalio-demo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.minimalio-demo-actions .button {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  box-shadow: none;
+  text-shadow: none;
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+.minimalio-demo-actions .button:hover,
+.minimalio-demo-actions .button-primary:hover,
+.minimalio-demo-actions .button-secondary:hover {
+  background: #f86d5b;
+  border-color: #f86d5b;
+  color: #fff;
+  box-shadow: none;
+}
+
+.minimalio-demo-actions .button-primary {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+}
+
+.minimalio-demo-actions .button-secondary {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+}
+
+.minimalio-import-spinner {
+  float: none;
+  margin: 10px auto 0;
+  display: block;
+  padding: 10px;
+}
+
+.minimalio-import-message {
+  margin: 15px 0;
+  padding: 15px;
+  border-radius: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.minimalio-import-message.notice-success {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.minimalio-import-message.notice-error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.minimalio-import-details strong {
+  font-weight: bold;
+}
+
+.minimalio-import-message ul {
+  margin: 10px 0 10px 20px;
+  list-style-type: disc;
+}
+
+.minimalio-import-message li {
+  margin: 5px 0;
+}
+
+.minimalio-demo-actions .button:disabled,
+.minimalio-demo-actions .button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f1f1f1 !important;
+  border-color: #ddd !important;
+  color: #999 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.minimalio-demo-actions .button.disabled:hover,
+.minimalio-demo-actions .button.disabled:focus {
+  background: #f1f1f1 !important;
+  border-color: #ddd !important;
+  color: #999 !important;
+}
+
+.minimalio-demos-note {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 0;
+  padding: 15px;
+  margin-top: 30px;
+}
+
+.minimalio-demos-note p {
+  margin: 0;
+  color: #856404;
+}
+
+/* Tutorials Page Styles */
+.minimalio-tutorials-intro {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 0;
+  margin-bottom: 30px;
+}
+
+.minimalio-tutorials-category {
+  margin-bottom: 40px;
+}
+
+.minimalio-category-title {
+  color: #23282d;
+  font-size: 24px;
+  line-height: 1;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #23282d;
+}
+
+.minimalio-tutorials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 25px;
+  margin: 20px 0;
+}
+
+.minimalio-tutorial-item {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 0;
+  overflow: hidden;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.minimalio-tutorial-image {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.minimalio-tutorial-image img {
+  width: 100%;
+  height: 100%;
+  -o-object-fit: cover;
+     object-fit: cover;
+}
+
+.minimalio-tutorial-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.minimalio-tutorial-content h3 {
+  margin: 0 0 12px 0;
+  color: #23282d;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.minimalio-tutorial-content p {
+  color: #000;
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 60px;
+  flex-grow: 1;
+}
+
+.minimalio-tutorial-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.minimalio-tutorial-actions .button {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.minimalio-tutorial-actions .button:hover,
+.minimalio-tutorial-actions .button-primary:hover,
+.minimalio-tutorial-actions .button-secondary:hover {
+  background: #f86d5b;
+  border-color: #f86d5b;
+  color: #fff;
+  box-shadow: none;
+}
+
+.minimalio-tutorial-actions .button-primary {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+}
+
+.minimalio-tutorial-actions .button-secondary {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+}
+
+.minimalio-tutorials-footer {
+  text-align: center;
+}
+
+.minimalio-tutorials-footer h3 {
+  margin-top: 0;
+  color: #23282d;
+}
+
+.minimalio-tutorials-footer p {
+  margin-bottom: 20px;
+  color: #000;
+}
+
+/* Welcome Notice Styles */
+.minimalio-welcome-notice {
+  border: 1px solid #000 !important;
+  border-left: 1px solid #000 !important;
+}
+
+.minimalio-welcome-notice .minimalio-notice-content {
+  display: flex;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.minimalio-welcome-notice .minimalio-notice-text {
+  flex: 1;
+  padding-right: 20px;
+}
+
+.minimalio-welcome-notice .minimalio-notice-text p {
+  font-size: 1rem;
+  max-inline-size: 55ch;
+}
+
+.minimalio-welcome-notice .minimalio-notice-image {
+  flex-shrink: 0;
+}
+
+.minimalio-welcome-notice .minimalio-notice-image img {
+  max-width: 250px;
+  height: auto;
+  border: 1px solid #ddd;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .minimalio-admin-grid,
+  .minimalio-demos-grid,
+  .minimalio-tutorials-grid {
+    grid-template-columns: 1fr;
+  }
+  .minimalio-demo-actions {
+    flex-direction: column;
+  }
+  .minimalio-premium-hero {
+    padding: 25px 20px;
+  }
+}
