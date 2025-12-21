@@ -11,24 +11,26 @@ Version: 1.0.0
    FOOTER STYLING
    ============================================ */
 
-/* Light grey footer background */
+/* White background, light grey text */
 #wrapper-footer,
 .minimalio-footer {
-    background-color: #f5f5f5;
-    color: #666;
+    background-color: #fff;
+    color: #aaa;
 }
 
 .minimalio-footer a {
-    color: #555;
+    color: #aaa;
 }
 
 .minimalio-footer a:hover {
-    color: #333;
+    color: #888;
 }
 
 /* Footer text styling */
 .footer__copyright,
 .footer__copyright-first-copy,
-.footer__copyright-last {
-    color: #888;
+.footer__copyright-last,
+.footer__section,
+.site-info {
+    color: #aaa;
 }
