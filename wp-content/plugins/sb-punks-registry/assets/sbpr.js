@@ -1,22 +1,50 @@
 (function(){
   function ready(fn){ if(document.readyState !== 'loading'){ fn(); } else { document.addEventListener('DOMContentLoaded', fn); } }
 
-  function shuffle(arr){
-    const a = arr.slice();
-    for(let i=a.length-1;i>0;i--){
-      const j = Math.floor(Math.random()*(i+1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
+  function uniquePositionsStratified(total, n){
+    // Pick ~evenly distributed positions across [0,total) by taking 1 from each segment.
+    const chosen = new Set();
+    const positions = [];
+    if(n <= 0) return positions;
 
-  function sampleEmptyPositions(total, emptyCount){
-    const idxs = Array.from({length: total}, (_, i) => i);
-    for(let i=0;i<emptyCount;i++){
-      const j = i + Math.floor(Math.random()*(total - i));
-      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    for(let i=0;i<n;i++){
+      const start = Math.floor(i * total / n);
+      const end   = Math.max(start, Math.floor((i + 1) * total / n) - 1);
+
+      let pick = start;
+      if(end > start){
+        pick = start + Math.floor(Math.random() * (end - start + 1));
+      }
+
+      // Try within segment first.
+      let found = -1;
+      const segLen = end - start + 1;
+      for(let k=0;k<segLen;k++){
+        const idx = start + ((pick - start + k) % segLen);
+        if(!chosen.has(idx)){
+          found = idx;
+          break;
+        }
+      }
+
+      // Fallback: global scan.
+      if(found === -1){
+        for(let idx=0; idx<total; idx++){
+          if(!chosen.has(idx)){
+            found = idx;
+            break;
+          }
+        }
+      }
+
+      if(found !== -1){
+        chosen.add(found);
+        positions.push(found);
+      }
     }
-    return new Set(idxs.slice(0, emptyCount));
+
+    positions.sort((a,b)=>a-b);
+    return positions;
   }
 
   function buildGrid(grid){
@@ -24,6 +52,9 @@
     let items;
     try { items = JSON.parse(itemsRaw); } catch(e){ items = []; }
     if(!Array.isArray(items) || items.length === 0) return;
+
+    // Order by punk number ascending (so lower IDs appear earlier in the reading order)
+    items = items.slice().sort((a,b)=> (parseInt(a.num,10)||0) - (parseInt(b.num,10)||0));
 
     const tile = 96;
     const gap  = 6;
@@ -41,48 +72,20 @@
     grid.style.setProperty('--sbpr-gap', gap + 'px');
     grid.style.setProperty('--sbpr-cols', String(cols));
 
-    // Target ~50% empties, but NEVER create repeats before every punk appears once
-    // (when the grid has enough slots).
-    const desiredEmpty = Math.floor(total * 0.5);
-    const maxEmpty = Math.max(0, total - items.length); // keep at least one slot per punk
-    const emptyCount = Math.min(desiredEmpty, maxEmpty);
+    // Place each punk once; everything else is a grey block.
+    const n = Math.min(items.length, total);
+    const positions = uniquePositionsStratified(total, n);
 
-    const emptyPos = sampleEmptyPositions(total, emptyCount);
-
-    const nonEmpty = total - emptyCount;
-    let assign = [];
-
-    if (nonEmpty <= items.length){
-      // Not enough slots to show all punks: show a unique subset (no repeats) and no empties.
-      // (This prevents the "4-5 of the same punk" issue on small screens.)
-      /* no-op */
-      assign = shuffle(items).slice(0, total);
-      // If we cleared empties, nonEmpty becomes total effectively.
-      // We'll render 'total' items below.
-    } else {
-      // Enough slots: ensure every punk appears once before any repeats.
-      const firstPass = shuffle(items);
-      assign = firstPass.slice();
-      while(assign.length < nonEmpty){
-        assign = assign.concat(shuffle(items));
-      }
-      assign = assign.slice(0, nonEmpty);
+    const posToItem = new Map();
+    for(let i=0;i<positions.length;i++){
+      posToItem.set(positions[i], items[i]);
     }
 
     const frag = document.createDocumentFragment();
-    let k = 0;
 
     for(let i=0;i<total;i++){
-      if(emptyPos.has(i)){
-        const s = document.createElement('span');
-        s.className = 'sbpr-emptycell';
-        frag.appendChild(s);
-        continue;
-      }
-
-      const it = assign[k++];
+      const it = posToItem.get(i);
       if(!it){
-        // Fallback: if empties were disabled due to small screen logic.
         const s = document.createElement('span');
         s.className = 'sbpr-emptycell';
         frag.appendChild(s);
@@ -100,7 +103,8 @@
         img.src = it.thumb;
         img.alt = '';
         img.decoding = 'async';
-        img.loading = (i < cols) ? 'eager' : 'lazy';
+        // Only ~12 images, so eager loading keeps hover smooth.
+        img.loading = 'eager';
         a.appendChild(img);
       }
       frag.appendChild(a);
