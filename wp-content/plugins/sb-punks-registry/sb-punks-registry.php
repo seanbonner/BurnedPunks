@@ -1,37 +1,37 @@
 <?php
 /**
- * Plugin Name: SB Punks Registry (Hotfix)
- * Description: Safe baseline for BurnedPunks/MuseumPunks CPT + shortcodes. Hotfix build to prevent site-breaking errors.
- * Version: 0.1.4
+ * Plugin Name: SB Punks Registry
+ * Description: BurnedPunks/MuseumPunks registry CPT + homepage mosaic + numeric permalinks.
+ * Version: 0.1.5
  * Author: SB
  */
 
 if (!defined('ABSPATH')) exit;
 
-final class SB_Punks_Registry_Hotfix {
+final class SB_Punks_Registry {
 	const PT = 'sb_punk';
 	const OPT_KEY = 'sb_punks_registry_settings';
 
 	public static function init() : void {
 		add_action('init', [__CLASS__, 'register_cpt']);
-		add_action('init', [__CLASS__, 'register_shortcodes']);
+		add_action('init', [__CLASS__, 'register_rewrites'], 20);
+		add_filter('query_vars', [__CLASS__, 'query_vars']);
+		add_shortcode('sb_punks_home', [__CLASS__, 'shortcode_home']);
+		add_shortcode('sb_punks_grid', [__CLASS__, 'shortcode_grid']);
+
+		add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
+		add_filter('body_class', [__CLASS__, 'body_class']);
+
+		// Admin UX
 		add_action('admin_menu', [__CLASS__, 'register_settings_page']);
 		add_action('admin_init', [__CLASS__, 'register_settings']);
 		add_action('add_meta_boxes', [__CLASS__, 'add_meta_boxes']);
 		add_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10, 2);
-
-		// Numeric-only root routing: /5449/ -> CPT item with slug "5449"
-		add_action('init', [__CLASS__, 'register_numeric_rewrite'], 20);
-		add_filter('query_vars', [__CLASS__, 'add_query_vars']);
-		add_action('pre_get_posts', [__CLASS__, 'handle_numeric_route']);
-
-		// Front-end assets (minimal)
-		add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
 	}
 
 	public static function activate() : void {
 		self::register_cpt();
-		self::register_numeric_rewrite();
+		self::register_rewrites();
 		flush_rewrite_rules();
 	}
 
@@ -55,60 +55,60 @@ final class SB_Punks_Registry_Hotfix {
 		$labels = [
 			'name' => 'Punks',
 			'singular_name' => 'Punk',
-			'add_new' => 'Add Punk',
-			'add_new_item' => 'Add Punk',
-			'edit_item' => 'Edit Punk',
-			'new_item' => 'New Punk',
-			'view_item' => 'View Punk',
-			'search_items' => 'Search Punks',
 		];
 
 		register_post_type(self::PT, [
 			'labels' => $labels,
 			'public' => true,
+			'publicly_queryable' => true,
 			'has_archive' => false,
 			'show_in_rest' => true,
 			'menu_icon' => 'dashicons-art',
 			'supports' => ['title','editor','thumbnail','excerpt','revisions'],
-			'rewrite' => false, // we provide numeric rewrite (and we want to avoid slug conflicts)
+			'rewrite' => false,        // we supply our own numeric rewrite
+			'query_var' => 'sb_punk',  // allows ?sb_punk=5449 as fallback, but we want /5449/
 		]);
 	}
 
-	public static function register_numeric_rewrite() : void {
+	public static function register_rewrites() : void {
+		// /5449/ -> post_type=sb_punk&name=5449
 		add_rewrite_rule(
 			'^([0-9]{1,5})/?$',
-			'index.php?sb_punk_numeric=$matches[1]',
+			'index.php?post_type=' . self::PT . '&name=$matches[1]',
 			'top'
 		);
 	}
 
-	public static function add_query_vars($vars) {
-		$vars[] = 'sb_punk_numeric';
+	public static function query_vars($vars) {
+		// no custom vars right now, but keep hook for future
 		return $vars;
 	}
 
-	public static function handle_numeric_route($q) : void {
-		if (is_admin() || !$q->is_main_query()) return;
-
-		$num = $q->get('sb_punk_numeric');
-		if (!$num) return;
-
-		// Route to CPT by slug/name = numeric
-		$q->set('post_type', self::PT);
-		$q->set('name', sanitize_title((string)$num));
-		$q->set('sb_punk_numeric', null);
-	}
-
-	public static function register_shortcodes() : void {
-		add_shortcode('sb_punks_home', [__CLASS__, 'shortcode_home']);
-		add_shortcode('sb_punks_grid', [__CLASS__, 'shortcode_grid']);
-	}
-
 	public static function enqueue_assets() : void {
-		$ver = '0.1.4';
-		wp_register_style('sb-punks-registry', plugins_url('assets/sb-punks.css', __FILE__), [], $ver);
-		wp_enqueue_style('sb-punks-registry');
+		$ver = '0.1.5';
+		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
+		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
+
+		$s = self::get_settings();
+		wp_localize_script('sbpr', 'SBPR', [
+			'aboutUrl' => $s['about_url'] ?: '/about/',
+		]);
 	}
+
+	public static function body_class($classes) {
+		if (is_front_page()) {
+			$post_id = get_queried_object_id();
+			if ($post_id) {
+				$content = (string)get_post_field('post_content', $post_id);
+				if ($content && has_shortcode($content, 'sb_punks_home')) {
+					$classes[] = 'sbpr-front';
+				}
+			}
+		}
+		return $classes;
+	}
+
+	// --- Shortcodes ---
 
 	public static function shortcode_home($atts = []) : string {
 		$s = self::get_settings();
@@ -116,10 +116,13 @@ final class SB_Punks_Registry_Hotfix {
 		$logo_default = esc_url($s['logo_default_url']);
 		$logo_hover = esc_url($s['logo_hover_url']);
 
+		$punk_ids = self::get_numeric_slug_posts();
+		$grid = self::render_mosaic($punk_ids, 1800);
+
 		ob_start(); ?>
 		<div class="sbpr-home">
 			<header class="sbpr-header">
-				<a class="sbpr-logo" href="<?php echo $about; ?>">
+				<a class="sbpr-logo" href="<?php echo $about; ?>" aria-label="About">
 					<?php if ($logo_default): ?>
 						<img class="sbpr-logo__img sbpr-logo__img--default" src="<?php echo $logo_default; ?>" alt="About" />
 					<?php else: ?>
@@ -131,8 +134,11 @@ final class SB_Punks_Registry_Hotfix {
 				</a>
 			</header>
 
-			<section class="sbpr-mosaic" aria-label="Punks">
-				<?php echo self::render_grid_markup(1200); ?>
+			<section class="sbpr-mosaic" aria-label="Punks mosaic">
+				<?php echo $grid; ?>
+				<div class="sbpr-mag" aria-hidden="true">
+					<div class="sbpr-mag__inner"></div>
+				</div>
 			</section>
 		</div>
 		<?php
@@ -140,46 +146,88 @@ final class SB_Punks_Registry_Hotfix {
 	}
 
 	public static function shortcode_grid($atts = []) : string {
+		$punk_ids = self::get_numeric_slug_posts();
+		$grid = self::render_mosaic($punk_ids, 900);
+
 		ob_start(); ?>
-		<div class="sbpr-gridwrap">
-			<?php echo self::render_grid_markup(600); ?>
+		<div class="sbpr-gridpage">
+			<?php echo $grid; ?>
 		</div>
 		<?php
 		return (string)ob_get_clean();
 	}
 
-	private static function render_grid_markup(int $max_items = 600) : string {
-		$q = new WP_Query([
-			'post_type' => self::PT,
-			'post_status' => 'publish',
-			'posts_per_page' => -1,
-			'orderby' => 'title',
-			'order' => 'ASC',
-			'fields' => 'ids',
-		]);
-
-		$ids = $q->posts ?: [];
-		if (empty($ids)) {
+	private static function render_mosaic(array $post_ids, int $max_tiles) : string {
+		if (empty($post_ids)) {
 			return '<p class="sbpr-empty">No punks found yet.</p>';
 		}
 
-		// Repeat to fake "thousands"
 		$links = [];
-		foreach ($ids as $id) {
+		$thumbs = [];
+		$svgs = [];
+
+		foreach ($post_ids as $id) {
 			$links[] = get_permalink($id);
+
+			$svg = (string)get_post_meta($id, '_sbpr_svg', true);
+			$svgs[] = $svg ?: '';
+
+			$thumb_url = '';
+			if (has_post_thumbnail($id)) {
+				$thumb_url = (string)get_the_post_thumbnail_url($id, 'medium');
+			}
+			$thumbs[] = $thumb_url;
 		}
 
-		$out = '<div class="sbpr-mosaic__grid">';
 		$len = count($links);
-		$total = max(1, min($max_items, $len * (int)ceil($max_items / max(1,$len))));
+		$total = min($max_tiles, max($len, $len * (int)ceil($max_tiles / max(1,$len))));
+
+		$out = '<div class="sbpr-mosaic__grid" data-sbpr-mosaic="1">';
 		for ($i=0; $i<$total; $i++) {
-			$href = esc_url($links[$i % $len]);
-			$out .= '<a class="sbpr-tile" href="'.$href.'" aria-label="Punk"></a>';
+			$idx = $i % $len;
+			$href = esc_url($links[$idx]);
+			$thumb = esc_url($thumbs[$idx]);
+			$svg = $svgs[$idx];
+
+			$out .= '<a class="sbpr-tile" href="'.$href.'" aria-label="Punk">';
+			if ($thumb) {
+				$out .= '<img class="sbpr-tile__img" src="'.$thumb.'" alt="" loading="lazy" decoding="async" />';
+			} elseif ($svg) {
+				$out .= '<span class="sbpr-tile__svg" aria-hidden="true">'.$svg.'</span>';
+			} else {
+				$out .= '<span class="sbpr-tile__ph" aria-hidden="true"></span>';
+			}
+			$out .= '</a>';
 		}
 		$out .= '</div>';
 
 		return $out;
 	}
+
+	/**
+	 * Return publish posts whose slug is numeric (1-5 digits), ordered numerically.
+	 * This makes the grid resilient even if post types change.
+	 */
+	private static function get_numeric_slug_posts() : array {
+		global $wpdb;
+
+		// Only published posts of any type, numeric slug, ignore revisions/nav items.
+		$sql = "
+			SELECT ID
+			FROM {$wpdb->posts}
+			WHERE post_status='publish'
+			  AND post_type NOT IN ('revision','nav_menu_item','attachment')
+			  AND post_name REGEXP '^[0-9]{1,5}$'
+			ORDER BY CAST(post_name AS UNSIGNED) ASC
+			LIMIT 2000
+		";
+
+		$ids = $wpdb->get_col($sql);
+		$ids = array_map('intval', $ids ?: []);
+		return $ids;
+	}
+
+	// --- Admin: settings + meta ---
 
 	public static function register_settings_page() : void {
 		add_options_page(
@@ -221,7 +269,8 @@ final class SB_Punks_Registry_Hotfix {
 		?>
 		<div class="wrap">
 			<h1>SB Punks Registry</h1>
-			<p><strong>Hotfix mode:</strong> this build disables all chain fetching/import to keep the site stable.</p>
+			<p>This build is stable and restores /####/ permalinks. Chain import is not re-enabled yet.</p>
+			<p><strong>IMPORTANT:</strong> after updating this plugin, go to <em>Settings → Permalinks</em> and click <em>Save</em> once.</p>
 			<form method="post" action="options.php">
 				<?php
 				settings_fields('sb_punks_registry');
@@ -254,7 +303,7 @@ final class SB_Punks_Registry_Hotfix {
 		$s = self::get_settings();
 		?>
 		<input type="text" class="regular-text" name="<?php echo esc_attr(self::OPT_KEY); ?>[logo_default_url]" value="<?php echo esc_attr($s['logo_default_url']); ?>" />
-		<p class="description">Paste full image URL.</p>
+		<p class="description">Paste a full image URL.</p>
 		<?php
 	}
 
@@ -287,7 +336,7 @@ final class SB_Punks_Registry_Hotfix {
 				<option value="accidental" <?php selected($intent, 'accidental'); ?>>Accidental</option>
 			</select>
 		</p>
-		<p class="description">Hotfix build: chain data/import is disabled.</p>
+		<p class="description">If you want /####/ URLs, keep the post title/slug numeric.</p>
 		<?php
 	}
 
@@ -300,7 +349,6 @@ final class SB_Punks_Registry_Hotfix {
 		if ($punk_id !== null && $punk_id >= 0 && $punk_id <= 9999) {
 			update_post_meta($post_id, '_sbpr_punk_id', (string)$punk_id);
 
-			// Ensure numeric slug/permalink stability if user wants /5449/
 			$desired = (string)$punk_id;
 			if ($post->post_name !== $desired) {
 				remove_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10);
@@ -319,6 +367,6 @@ final class SB_Punks_Registry_Hotfix {
 	}
 }
 
-SB_Punks_Registry_Hotfix::init();
-register_activation_hook(__FILE__, ['SB_Punks_Registry_Hotfix', 'activate']);
-register_deactivation_hook(__FILE__, ['SB_Punks_Registry_Hotfix', 'deactivate']);
+SB_Punks_Registry::init();
+register_activation_hook(__FILE__, ['SB_Punks_Registry', 'activate']);
+register_deactivation_hook(__FILE__, ['SB_Punks_Registry', 'deactivate']);

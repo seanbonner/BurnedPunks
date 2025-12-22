@@ -1,0 +1,40 @@
+
+/* SB Punks Registry 0.1.5 — stabilize + homepage style direction */
+.sbpr-front #masthead,
+.sbpr-front .site-header,
+.sbpr-front header#masthead,
+.sbpr-front nav,
+.sbpr-front .primary-navigation,
+.sbpr-front .main-navigation,
+.sbpr-front .wp-block-navigation { display:none !important; }
+
+.sbpr-home { background:#fff; color:#000; }
+.sbpr-header { padding: 72px 24px 44px; display:flex; justify-content:center; }
+.sbpr-logo { display:inline-block; position:relative; }
+.sbpr-logo__img { display:block; max-width:min(560px, 86vw); height:auto; }
+.sbpr-logo__img--hover { position:absolute; inset:0; opacity:0; transition:opacity .12s ease; }
+.sbpr-logo:hover .sbpr-logo__img--hover { opacity:1; }
+.sbpr-logo:hover .sbpr-logo__img--default { opacity:0; }
+.sbpr-logo__text { font-size: 28px; letter-spacing:.08em; text-transform:uppercase; border-bottom: 1px solid rgba(0,0,0,.25); }
+
+.sbpr-mosaic { padding: 0 18px 72px; position:relative; }
+.sbpr-mosaic__grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(14px, 1fr)); gap: 2px; }
+@media (max-width: 520px){ .sbpr-mosaic__grid { grid-template-columns: repeat(auto-fill, minmax(11px, 1fr)); } }
+
+.sbpr-tile { display:block; aspect-ratio: 1 / 1; overflow:hidden; background: rgba(0,0,0,.06); }
+.sbpr-tile__img, .sbpr-tile__svg svg { width:100%; height:100%; display:block; object-fit:cover; image-rendering: pixelated; }
+
+.sbpr-tile__img, .sbpr-tile__svg { filter: grayscale(100%); opacity: .7; transition: filter .08s ease, opacity .08s ease; }
+.sbpr-tile:hover .sbpr-tile__img,
+.sbpr-tile:hover .sbpr-tile__svg { filter:none; opacity: 1; }
+
+.sbpr-tile__ph { display:block; width:100%; height:100%; background: rgba(0,0,0,.12); }
+
+.sbpr-mag { position: fixed; right: 18px; bottom: 18px; width: 168px; height: 168px; border: 1px solid rgba(0,0,0,.2); background:#fff; display:none; z-index: 9999; }
+.sbpr-mag.is-on { display:block; }
+.sbpr-mag__inner { width:100%; height:100%; }
+.sbpr-mag__inner img, .sbpr-mag__inner svg { width:100%; height:100%; display:block; image-rendering: pixelated; }
+
+.sbpr-empty { padding: 24px; opacity: .7; text-align:center; }
+
+.sbpr-gridpage { padding: 24px 18px; background:#fff; }
