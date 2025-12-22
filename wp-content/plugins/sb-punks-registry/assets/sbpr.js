@@ -2,40 +2,34 @@
 (function(){
   function ready(fn){ if(document.readyState !== 'loading'){ fn(); } else { document.addEventListener('DOMContentLoaded', fn); } }
 
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
   function buildGrid(grid){
-    let itemsRaw = grid.getAttribute('data-sbpr-items') || '[]';
-    let mode = grid.getAttribute('data-sbpr-mode') || 'mosaic';
+    const itemsRaw = grid.getAttribute('data-sbpr-items') || '[]';
     let items;
     try { items = JSON.parse(itemsRaw); } catch(e){ items = []; }
     if(!Array.isArray(items) || items.length === 0) return;
 
-    // Tile sizing: home should feel like "thousands". Keep it small.
-    const tile = (mode === 'home') ? 12 : 18;
-    const gap  = (mode === 'home') ? 2 : 2;
+    const mode = grid.getAttribute('data-sbpr-mode') || 'home';
 
-    // Calculate columns based on available width.
-    const padX = 0; // already handled by CSS padding on grid
-    const w = Math.max(320, grid.clientWidth - padX);
+    const tile = 12;
+    const gap  = 2;
+
+    // Use viewport width for full-bleed accuracy.
+    const w = Math.max(320, window.innerWidth);
     const cols = Math.max(40, Math.floor((w + gap) / (tile + gap)));
 
-    // Calculate rows to fill viewport to bottom (home), or a reasonable block (mosaic).
-    let targetH;
-    if(mode === 'home'){
-      const header = document.querySelector('.sbpr-header');
-      const headerH = header ? header.getBoundingClientRect().height : 0;
-      targetH = Math.max(320, window.innerHeight - headerH - 24);
-    } else {
-      targetH = Math.max(420, Math.min(1200, window.innerHeight));
-    }
+    // Fill to bottom of viewport under header.
+    const header = document.querySelector('.sbpr-header');
+    const headerH = header ? header.getBoundingClientRect().height : 0;
+    const targetH = Math.max(320, window.innerHeight - headerH - 24);
     const rows = Math.max(20, Math.ceil((targetH + gap) / (tile + gap)));
     const total = cols * rows;
 
     grid.style.setProperty('--sbpr-tile', tile + 'px');
     grid.style.setProperty('--sbpr-gap', gap + 'px');
     grid.style.setProperty('--sbpr-cols', String(cols));
-    grid.style.setProperty('--sbpr-rows', String(rows));
 
-    // Build tiles with randomized selection to avoid banding.
     const frag = document.createDocumentFragment();
     for(let i=0;i<total;i++){
       const it = items[Math.floor(Math.random()*items.length)];
@@ -69,6 +63,24 @@
       magInner.innerHTML = '';
     }
 
+    function positionMag(e){
+      if(!mag.classList.contains('is-on')) return;
+      const pad = 18;
+      const w = mag.offsetWidth || 168;
+      const h = mag.offsetHeight || 168;
+      let x = e.clientX + 18;
+      let y = e.clientY + 18;
+
+      // Flip if near right/bottom edge.
+      x = clamp(x, pad, window.innerWidth - w - pad);
+      y = clamp(y, pad, window.innerHeight - h - pad);
+
+      mag.style.left = x + 'px';
+      mag.style.top  = y + 'px';
+    }
+
+    document.addEventListener('mousemove', positionMag, { passive: true });
+
     document.addEventListener('mouseover', function(e){
       const a = e.target.closest && e.target.closest('.sbpr-tile');
       if(!a) return;
@@ -82,6 +94,7 @@
       clone.style.opacity = '1';
       magInner.appendChild(clone);
       mag.classList.add('is-on');
+      positionMag(e);
     });
 
     document.addEventListener('mouseout', function(e){
@@ -91,16 +104,14 @@
   }
 
   ready(function(){
-    const grids = document.querySelectorAll('.sbpr-mosaic__grid[data-sbpr-items]');
-    grids.forEach(buildGrid);
+    const grid = document.querySelector('.sbpr-mosaic__grid[data-sbpr-items]');
+    if(grid) buildGrid(grid);
 
-    // Rebuild on resize (debounced)
     let t = null;
     window.addEventListener('resize', function(){
+      if(!grid) return;
       if(t) clearTimeout(t);
-      t = setTimeout(function(){
-        grids.forEach(buildGrid);
-      }, 150);
+      t = setTimeout(function(){ buildGrid(grid); }, 150);
     });
 
     initMagnifier();
