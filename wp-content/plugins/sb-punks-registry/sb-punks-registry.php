@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks.
- * Version: 0.1.8
+ * Version: 0.1.10
  * Author: SB
  */
 
@@ -11,11 +11,16 @@ if (!defined('ABSPATH')) exit;
 final class SB_Punks_Registry {
 	const PT = 'sb_punk';
 	const OPT_KEY = 'sb_punks_registry_settings';
-	const META_BURN_DATE = '_sbpr_burn_date'; // YYYY-MM-DD
+
+	// Meta keys
+	const META_PUNK_ID    = '_sbpr_punk_id';     // 0-9999
+	const META_INTENT     = '_sbpr_intent';      // intentional|accidental|''
+	const META_BURN_DATE  = '_sbpr_burn_date';   // YYYY-MM-DD
 
 	public static function init() : void {
 		add_action('init', [__CLASS__, 'register_cpt']);
 		add_action('init', [__CLASS__, 'register_rewrites'], 20);
+		add_action('init', [__CLASS__, 'force_no_comments'], 30);
 
 		add_shortcode('sb_punks_home', [__CLASS__, 'shortcode_home']);
 		add_shortcode('sb_punks_index', [__CLASS__, 'shortcode_index']);
@@ -30,16 +35,15 @@ final class SB_Punks_Registry {
 		// Use classic editor for this CPT to avoid "invalid block" warnings on migrated content.
 		add_filter('use_block_editor_for_post_type', [__CLASS__, 'disable_block_editor_for_cpt'], 10, 2);
 
+		// Hard-disable comments/pings for this CPT.
+		add_filter('comments_open', [__CLASS__, 'comments_open'], 10, 2);
+		add_filter('pings_open', [__CLASS__, 'pings_open'], 10, 2);
+
 		// Admin UX
 		add_action('admin_menu', [__CLASS__, 'register_settings_page']);
 		add_action('admin_init', [__CLASS__, 'register_settings']);
 		add_action('add_meta_boxes', [__CLASS__, 'add_meta_boxes']);
 		add_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10, 3);
-	}
-
-	public static function disable_block_editor_for_cpt($use, $post_type) {
-		if ($post_type === self::PT) return false;
-		return $use;
 	}
 
 	public static function activate() : void {
@@ -50,6 +54,29 @@ final class SB_Punks_Registry {
 
 	public static function deactivate() : void {
 		flush_rewrite_rules();
+	}
+
+	public static function disable_block_editor_for_cpt($use, $post_type) {
+		if ($post_type === self::PT) return false;
+		return $use;
+	}
+
+	public static function force_no_comments() : void {
+		remove_post_type_support(self::PT, 'comments');
+		remove_post_type_support(self::PT, 'trackbacks');
+		remove_post_type_support(self::PT, 'excerpt');
+	}
+
+	public static function comments_open($open, $post_id) {
+		$post = get_post($post_id);
+		if ($post && $post->post_type === self::PT) return false;
+		return $open;
+	}
+
+	public static function pings_open($open, $post_id) {
+		$post = get_post($post_id);
+		if ($post && $post->post_type === self::PT) return false;
+		return $open;
 	}
 
 	public static function get_settings() : array {
@@ -73,16 +100,15 @@ final class SB_Punks_Registry {
 			'public' => true,
 			'publicly_queryable' => true,
 			'has_archive' => false,
-			'show_in_rest' => false, // classic editor + avoids block parsing issues
+			'show_in_rest' => false,
 			'menu_icon' => 'dashicons-art',
-			'supports' => ['title','editor','thumbnail','excerpt','revisions'],
-			'rewrite' => false,       // we provide our own numeric rewrite
-			'query_var' => 'sb_punk', // fallback query var
+			'supports' => ['title','editor','thumbnail','revisions'],
+			'rewrite' => false,
+			'query_var' => 'sb_punk',
 		]);
 	}
 
 	public static function register_rewrites() : void {
-		// /5449/ -> sb_punk with slug/name 5449
 		add_rewrite_rule(
 			'^([0-9]{1,5})/?$',
 			'index.php?post_type=' . self::PT . '&name=$matches[1]',
@@ -101,7 +127,7 @@ final class SB_Punks_Registry {
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.1.8';
+		$ver = '0.1.10';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
 	}
@@ -119,17 +145,13 @@ final class SB_Punks_Registry {
 		return $classes;
 	}
 
-	// -------------------------
-	// Shortcodes
-	// -------------------------
-
 	public static function shortcode_home($atts = []) : string {
 		$s = self::get_settings();
 		$about = esc_url($s['about_url'] ?: '/about/');
 		$logo_default = esc_url($s['logo_default_url']);
 		$logo_hover = esc_url($s['logo_hover_url']);
 
-		$items = self::get_punk_items(false); // order irrelevant for mosaic
+		$items = self::get_punk_items(false);
 
 		ob_start(); ?>
 		<div class="sbpr-home">
@@ -156,7 +178,6 @@ final class SB_Punks_Registry {
 		return (string)ob_get_clean();
 	}
 
-	// Punks index: 4-wide, full color, sorted by burn date newest->oldest.
 	public static function shortcode_index($atts = []) : string {
 		$items = self::get_punk_items(true);
 		if (empty($items)) return '<p class="sbpr-empty">No punks found yet.</p>';
@@ -180,13 +201,18 @@ final class SB_Punks_Registry {
 		return $out;
 	}
 
-	// -------------------------
-	// Data helpers
-	// -------------------------
+	private static function normalize_date($s) : string {
+		$s = (string)$s;
+		if (preg_match('/\b(20\d{2}-\d{2}-\d{2})\b/', $s, $m)) return $m[1];
+		return '';
+	}
 
-	/**
-	 * If $sort_by_burn_date is true, items are ordered by burn_date desc (fallback: post_date desc).
-	 */
+	private static function date_key($s) : int {
+		$d = self::normalize_date($s);
+		if (!$d) return 0;
+		return (int) str_replace('-', '', $d);
+	}
+
 	private static function get_punk_items(bool $sort_by_burn_date) : array {
 		global $wpdb;
 
@@ -220,34 +246,37 @@ final class SB_Punks_Registry {
 				}
 			}
 
-			$burn_date = (string)get_post_meta($id, self::META_BURN_DATE, true);
-			$post_date = (string)$r->post_date;
+			$burn_date = self::normalize_date((string)get_post_meta($id, self::META_BURN_DATE, true));
+			if (!$burn_date) {
+				$content = (string)get_post_field('post_content', $id);
+				$burn_date = self::normalize_date($content);
+			}
 
 			$items[] = [
 				'num' => $slug,
 				'href' => $href,
 				'thumb' => $thumb,
 				'burn_date' => $burn_date,
-				'post_date' => $post_date,
+				'post_date' => (string)$r->post_date,
 			];
 		}
 
 		if ($sort_by_burn_date && count($items) > 1) {
 			usort($items, function($a, $b){
-				$ad = $a['burn_date'] ?: $a['post_date'];
-				$bd = $b['burn_date'] ?: $b['post_date'];
-				if ($ad === $bd) return (int)$b['num'] <=> (int)$a['num'];
-				return strcmp($bd, $ad); // DESC (newest first)
+				$ak = self::date_key($a['burn_date']);
+				$bk = self::date_key($b['burn_date']);
+
+				if ($ak === 0 && $bk !== 0) return 1;
+				if ($bk === 0 && $ak !== 0) return -1;
+
+				if ($ak !== $bk) return $bk <=> $ak;
+				return (int)$b['num'] <=> (int)$a['num'];
 			});
 		}
 
 		foreach ($items as &$it) { unset($it['post_date']); }
 		return $items;
 	}
-
-	// -------------------------
-	// Admin: settings + meta
-	// -------------------------
 
 	public static function register_settings_page() : void {
 		add_options_page(
@@ -338,12 +367,28 @@ final class SB_Punks_Registry {
 
 	public static function render_meta_box($post) : void {
 		wp_nonce_field('sbpr_save_meta', 'sbpr_nonce');
-		$burn_date = get_post_meta($post->ID, self::META_BURN_DATE, true);
+
+		$punk_id = (string)get_post_meta($post->ID, self::META_PUNK_ID, true);
+		$intent = (string)get_post_meta($post->ID, self::META_INTENT, true);
+		$burn_date = (string)get_post_meta($post->ID, self::META_BURN_DATE, true);
 		?>
+		<p>
+			<label for="sbpr_punk_id"><strong>Punk #</strong></label><br/>
+			<input type="number" min="0" max="9999" id="sbpr_punk_id" name="sbpr_punk_id" value="<?php echo esc_attr($punk_id); ?>" style="width:100%;" />
+		</p>
+
+		<p>
+			<label for="sbpr_intent"><strong>Burn type</strong></label><br/>
+			<select id="sbpr_intent" name="sbpr_intent" style="width:100%;">
+				<option value="" <?php selected($intent, ''); ?>>(not set)</option>
+				<option value="intentional" <?php selected($intent, 'intentional'); ?>>Intentional</option>
+				<option value="accidental" <?php selected($intent, 'accidental'); ?>>Accidental</option>
+			</select>
+		</p>
+
 		<p>
 			<label for="sbpr_burn_date"><strong>Burn date (YYYY-MM-DD)</strong></label><br/>
 			<input type="text" id="sbpr_burn_date" name="sbpr_burn_date" value="<?php echo esc_attr($burn_date); ?>" placeholder="2021-01-01" style="width:100%;" />
-			<span class="description">Used for ordering on /the-punks/.</span>
 		</p>
 		<?php
 	}
@@ -353,20 +398,32 @@ final class SB_Punks_Registry {
 		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
 		if (!current_user_can('edit_post', $post_id)) return;
 
-		$burn_date = isset($_POST['sbpr_burn_date']) ? sanitize_text_field((string)$_POST['sbpr_burn_date']) : '';
-		if ($burn_date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $burn_date)) {
-			$burn_date = '';
-		}
-		if ($burn_date) {
-			update_post_meta($post_id, self::META_BURN_DATE, $burn_date);
-		} else {
-			$current = (string)get_post_meta($post_id, self::META_BURN_DATE, true);
-			if (!$current) {
-				$content = (string)get_post_field('post_content', $post_id);
-				if (preg_match('/\b(20\d{2}-\d{2}-\d{2})\b/', $content, $m)) {
-					update_post_meta($post_id, self::META_BURN_DATE, $m[1]);
+		if (isset($_POST['sbpr_punk_id']) && $_POST['sbpr_punk_id'] !== '') {
+			$punk_id = (int)$_POST['sbpr_punk_id'];
+			if ($punk_id >= 0 && $punk_id <= 9999) {
+				update_post_meta($post_id, self::META_PUNK_ID, (string)$punk_id);
+
+				$desired = (string)$punk_id;
+				if ($post->post_name !== $desired) {
+					remove_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10);
+					wp_update_post([
+						'ID' => $post_id,
+						'post_name' => $desired,
+						'post_title' => $desired,
+					]);
+					add_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10, 3);
 				}
 			}
+		}
+
+		$intent = isset($_POST['sbpr_intent']) ? sanitize_text_field((string)$_POST['sbpr_intent']) : '';
+		if (!in_array($intent, ['intentional','accidental',''], true)) $intent = '';
+		update_post_meta($post_id, self::META_INTENT, $intent);
+
+		$burn_date_in = isset($_POST['sbpr_burn_date']) ? (string)$_POST['sbpr_burn_date'] : '';
+		$burn_date = self::normalize_date($burn_date_in);
+		if ($burn_date) {
+			update_post_meta($post_id, self::META_BURN_DATE, $burn_date);
 		}
 	}
 }

@@ -1,5 +1,4 @@
-
-/* SB Punks Registry 0.1.8 */
+/* SB Punks Registry 0.1.9 */
 
 /* Front page: kill theme header/nav/logo wrappers. */
 .sbpr-front header#masthead,
@@ -35,16 +34,18 @@
   flex-direction:column;
 }
 
-/* Header always ~1/3 of viewport, logo LEFT with nice padding. */
-.sbpr-header {
+/* Header ~1/3 viewport, logo LEFT with padding. Force left even if theme centers headers. */
+.sbpr-front .sbpr-header {
   height: 33vh;
   min-height: 220px;
   padding-left: clamp(28px, 7vw, 92px);
   padding-right: 24px;
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  text-align:left !important;
 }
+.sbpr-front .sbpr-logo { margin:0 !important; }
 
 .sbpr-logo { display:inline-block; position:relative; }
 .sbpr-logo__img { display:block; max-width:min(720px, 88vw); height:auto; }
@@ -74,17 +75,18 @@
 }
 
 @media (max-width: 520px){
-  .sbpr-header { min-height: 190px; padding-left: 18px; padding-right: 18px; }
+  .sbpr-front .sbpr-header { min-height: 190px; padding-left: 18px; padding-right: 18px; }
   .sbpr-mosaic__grid { padding: 0 18px 18px; gap: 5px; }
 }
 
-/* Tiles */
-.sbpr-tile {
+/* Tiles + empty cells share the same grey block feel */
+.sbpr-tile,
+.sbpr-emptycell {
   display:block;
   width: var(--sbpr-tile, 96px);
   height: var(--sbpr-tile, 96px);
   overflow:hidden;
-  background: rgba(0,0,0,.06);
+  background: rgba(0,0,0,.08);
 }
 
 .sbpr-tile__img {
@@ -98,14 +100,6 @@
   transition: filter .08s ease, opacity .08s ease;
 }
 .sbpr-tile:hover .sbpr-tile__img { filter:none; opacity: 1; }
-
-/* Empty cells (non-links) */
-.sbpr-emptycell {
-  display:block;
-  width: var(--sbpr-tile, 96px);
-  height: var(--sbpr-tile, 96px);
-  background: transparent;
-}
 
 /* Punks index page: 4 wide, big, full color */
 .sbpr-index {

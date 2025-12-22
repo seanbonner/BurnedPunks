@@ -1,6 +1,23 @@
-
 (function(){
   function ready(fn){ if(document.readyState !== 'loading'){ fn(); } else { document.addEventListener('DOMContentLoaded', fn); } }
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function sampleEmptyPositions(total, emptyCount){
+    const idxs = Array.from({length: total}, (_, i) => i);
+    for(let i=0;i<emptyCount;i++){
+      const j = i + Math.floor(Math.random()*(total - i));
+      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    }
+    return new Set(idxs.slice(0, emptyCount));
+  }
 
   function buildGrid(grid){
     const itemsRaw = grid.getAttribute('data-sbpr-items') || '[]';
@@ -8,7 +25,7 @@
     try { items = JSON.parse(itemsRaw); } catch(e){ items = []; }
     if(!Array.isArray(items) || items.length === 0) return;
 
-    const tile = 96; // 8x from the original 12px
+    const tile = 96;
     const gap  = 6;
 
     const w = Math.max(320, window.innerWidth);
@@ -24,18 +41,54 @@
     grid.style.setProperty('--sbpr-gap', gap + 'px');
     grid.style.setProperty('--sbpr-cols', String(cols));
 
+    // Target ~50% empties, but NEVER create repeats before every punk appears once
+    // (when the grid has enough slots).
+    const desiredEmpty = Math.floor(total * 0.5);
+    const maxEmpty = Math.max(0, total - items.length); // keep at least one slot per punk
+    const emptyCount = Math.min(desiredEmpty, maxEmpty);
+
+    const emptyPos = sampleEmptyPositions(total, emptyCount);
+
+    const nonEmpty = total - emptyCount;
+    let assign = [];
+
+    if (nonEmpty <= items.length){
+      // Not enough slots to show all punks: show a unique subset (no repeats) and no empties.
+      // (This prevents the "4-5 of the same punk" issue on small screens.)
+      /* no-op */
+      assign = shuffle(items).slice(0, total);
+      // If we cleared empties, nonEmpty becomes total effectively.
+      // We'll render 'total' items below.
+    } else {
+      // Enough slots: ensure every punk appears once before any repeats.
+      const firstPass = shuffle(items);
+      assign = firstPass.slice();
+      while(assign.length < nonEmpty){
+        assign = assign.concat(shuffle(items));
+      }
+      assign = assign.slice(0, nonEmpty);
+    }
+
     const frag = document.createDocumentFragment();
+    let k = 0;
 
     for(let i=0;i<total;i++){
-      // 50% empty cells
-      if(Math.random() < 0.5){
+      if(emptyPos.has(i)){
         const s = document.createElement('span');
         s.className = 'sbpr-emptycell';
         frag.appendChild(s);
         continue;
       }
 
-      const it = items[Math.floor(Math.random()*items.length)];
+      const it = assign[k++];
+      if(!it){
+        // Fallback: if empties were disabled due to small screen logic.
+        const s = document.createElement('span');
+        s.className = 'sbpr-emptycell';
+        frag.appendChild(s);
+        continue;
+      }
+
       const a = document.createElement('a');
       a.className = 'sbpr-tile';
       a.href = it.href;
@@ -47,7 +100,6 @@
         img.src = it.thumb;
         img.alt = '';
         img.decoding = 'async';
-        // With large tiles + empties, most loads are fast; eager first row.
         img.loading = (i < cols) ? 'eager' : 'lazy';
         a.appendChild(img);
       }
