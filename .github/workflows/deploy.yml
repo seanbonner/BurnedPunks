@@ -32,4 +32,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./wp-content/plugins/
           server-dir: /domains/burnedpunks.com/public_html/wp-content/plugins/
-          dangerous-clean-slate: false
+          state-name: .plugins-sync-state.json
