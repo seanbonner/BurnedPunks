@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks.
- * Version: 0.1.7
+ * Version: 0.1.8
  * Author: SB
  */
 
@@ -27,11 +27,19 @@ final class SB_Punks_Registry {
 		add_filter('post_type_link', [__CLASS__, 'filter_sb_punk_link'], 10, 4);
 		add_filter('post_link', [__CLASS__, 'filter_sb_punk_link'], 10, 3);
 
+		// Use classic editor for this CPT to avoid "invalid block" warnings on migrated content.
+		add_filter('use_block_editor_for_post_type', [__CLASS__, 'disable_block_editor_for_cpt'], 10, 2);
+
 		// Admin UX
 		add_action('admin_menu', [__CLASS__, 'register_settings_page']);
 		add_action('admin_init', [__CLASS__, 'register_settings']);
 		add_action('add_meta_boxes', [__CLASS__, 'add_meta_boxes']);
 		add_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10, 3);
+	}
+
+	public static function disable_block_editor_for_cpt($use, $post_type) {
+		if ($post_type === self::PT) return false;
+		return $use;
 	}
 
 	public static function activate() : void {
@@ -65,7 +73,7 @@ final class SB_Punks_Registry {
 			'public' => true,
 			'publicly_queryable' => true,
 			'has_archive' => false,
-			'show_in_rest' => true,
+			'show_in_rest' => false, // classic editor + avoids block parsing issues
 			'menu_icon' => 'dashicons-art',
 			'supports' => ['title','editor','thumbnail','excerpt','revisions'],
 			'rewrite' => false,       // we provide our own numeric rewrite
@@ -93,7 +101,7 @@ final class SB_Punks_Registry {
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.1.7';
+		$ver = '0.1.8';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
 	}
@@ -121,7 +129,7 @@ final class SB_Punks_Registry {
 		$logo_default = esc_url($s['logo_default_url']);
 		$logo_hover = esc_url($s['logo_hover_url']);
 
-		$items = self::get_punk_items(false); // order doesn't matter for mosaic; we randomize per-tile
+		$items = self::get_punk_items(false); // order irrelevant for mosaic
 
 		ob_start(); ?>
 		<div class="sbpr-home">
@@ -142,20 +150,15 @@ final class SB_Punks_Registry {
 				<div class="sbpr-mosaic__grid"
 					 data-sbpr-items="<?php echo esc_attr(wp_json_encode($items)); ?>"
 					 data-sbpr-mode="home"></div>
-
-				<div class="sbpr-mag" aria-hidden="true">
-					<div class="sbpr-mag__inner"></div>
-				</div>
 			</section>
 		</div>
 		<?php
 		return (string)ob_get_clean();
 	}
 
-	// The "Punks" index: 4-wide, full color, sorted by burn date (oldest->newest).
+	// Punks index: 4-wide, full color, sorted by burn date newest->oldest.
 	public static function shortcode_index($atts = []) : string {
-		$items = self::get_punk_items(true); // include burn_date + sort
-
+		$items = self::get_punk_items(true);
 		if (empty($items)) return '<p class="sbpr-empty">No punks found yet.</p>';
 
 		$out = '<div class="sbpr-index">';
@@ -182,17 +185,11 @@ final class SB_Punks_Registry {
 	// -------------------------
 
 	/**
-	 * Returns array of punk items:
-	 * [
-	 *   { "num": "5449", "href": "https://site/5449/", "thumb": "https://...", "burn_date":"2021-01-01" },
-	 * ]
-	 *
-	 * If $sort_by_burn_date is true, items are ordered by burn_date asc (fallback: post_date asc).
+	 * If $sort_by_burn_date is true, items are ordered by burn_date desc (fallback: post_date desc).
 	 */
 	private static function get_punk_items(bool $sort_by_burn_date) : array {
 		global $wpdb;
 
-		// Only numeric-slug published posts of our CPT.
 		$sql = "
 			SELECT ID, post_name, post_date
 			FROM {$wpdb->posts}
@@ -216,7 +213,6 @@ final class SB_Punks_Registry {
 			if (has_post_thumbnail($id)) {
 				$thumb = (string)get_the_post_thumbnail_url($id, 'large');
 			} else {
-				// If no featured image, try any attached image as fallback (helps if migration lost thumb).
 				$attached = get_attached_media('image', $id);
 				if (!empty($attached)) {
 					$first = reset($attached);
@@ -228,7 +224,6 @@ final class SB_Punks_Registry {
 			$post_date = (string)$r->post_date;
 
 			$items[] = [
-				'id' => $id,
 				'num' => $slug,
 				'href' => $href,
 				'thumb' => $thumb,
@@ -241,13 +236,12 @@ final class SB_Punks_Registry {
 			usort($items, function($a, $b){
 				$ad = $a['burn_date'] ?: $a['post_date'];
 				$bd = $b['burn_date'] ?: $b['post_date'];
-				if ($ad === $bd) return (int)$a['num'] <=> (int)$b['num'];
-				return strcmp($ad, $bd);
+				if ($ad === $bd) return (int)$b['num'] <=> (int)$a['num'];
+				return strcmp($bd, $ad); // DESC (newest first)
 			});
 		}
 
-		// Strip internal keys before JSON output.
-		foreach ($items as &$it) { unset($it['id'], $it['post_date']); }
+		foreach ($items as &$it) { unset($it['post_date']); }
 		return $items;
 	}
 
@@ -344,26 +338,12 @@ final class SB_Punks_Registry {
 
 	public static function render_meta_box($post) : void {
 		wp_nonce_field('sbpr_save_meta', 'sbpr_nonce');
-		$punk_id = get_post_meta($post->ID, '_sbpr_punk_id', true);
-		$intent = get_post_meta($post->ID, '_sbpr_intent', true);
 		$burn_date = get_post_meta($post->ID, self::META_BURN_DATE, true);
 		?>
-		<p>
-			<label for="sbpr_punk_id"><strong>Punk #</strong></label><br/>
-			<input type="number" min="0" max="9999" id="sbpr_punk_id" name="sbpr_punk_id" value="<?php echo esc_attr($punk_id); ?>" style="width:100%;" />
-		</p>
 		<p>
 			<label for="sbpr_burn_date"><strong>Burn date (YYYY-MM-DD)</strong></label><br/>
 			<input type="text" id="sbpr_burn_date" name="sbpr_burn_date" value="<?php echo esc_attr($burn_date); ?>" placeholder="2021-01-01" style="width:100%;" />
 			<span class="description">Used for ordering on /the-punks/.</span>
-		</p>
-		<p>
-			<label for="sbpr_intent"><strong>Burn type</strong></label><br/>
-			<select id="sbpr_intent" name="sbpr_intent" style="width:100%;">
-				<option value="" <?php selected($intent, ''); ?>>(not set)</option>
-				<option value="intentional" <?php selected($intent, 'intentional'); ?>>Intentional</option>
-				<option value="accidental" <?php selected($intent, 'accidental'); ?>>Accidental</option>
-			</select>
 		</p>
 		<?php
 	}
@@ -373,27 +353,6 @@ final class SB_Punks_Registry {
 		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
 		if (!current_user_can('edit_post', $post_id)) return;
 
-		$punk_id = isset($_POST['sbpr_punk_id']) ? (int)$_POST['sbpr_punk_id'] : null;
-		if ($punk_id !== null && $punk_id >= 0 && $punk_id <= 9999) {
-			update_post_meta($post_id, '_sbpr_punk_id', (string)$punk_id);
-
-			$desired = (string)$punk_id;
-			if ($post->post_name !== $desired) {
-				remove_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10);
-				wp_update_post([
-					'ID' => $post_id,
-					'post_name' => $desired,
-					'post_title' => $desired,
-				]);
-				add_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10, 3);
-			}
-		}
-
-		$intent = isset($_POST['sbpr_intent']) ? sanitize_text_field((string)$_POST['sbpr_intent']) : '';
-		if (!in_array($intent, ['intentional','accidental',''], true)) $intent = '';
-		update_post_meta($post_id, '_sbpr_intent', $intent);
-
-		// Burn date
 		$burn_date = isset($_POST['sbpr_burn_date']) ? sanitize_text_field((string)$_POST['sbpr_burn_date']) : '';
 		if ($burn_date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $burn_date)) {
 			$burn_date = '';
@@ -401,7 +360,6 @@ final class SB_Punks_Registry {
 		if ($burn_date) {
 			update_post_meta($post_id, self::META_BURN_DATE, $burn_date);
 		} else {
-			// If empty, try to auto-detect from content once, to reduce manual work.
 			$current = (string)get_post_meta($post_id, self::META_BURN_DATE, true);
 			if (!$current) {
 				$content = (string)get_post_field('post_content', $post_id);

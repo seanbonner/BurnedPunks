@@ -1,5 +1,5 @@
 
-/* SB Punks Registry 0.1.7 */
+/* SB Punks Registry 0.1.8 */
 
 /* Front page: kill theme header/nav/logo wrappers. */
 .sbpr-front header#masthead,
@@ -35,14 +35,15 @@
   flex-direction:column;
 }
 
-/* Header always ~1/3 of viewport, logo centered. */
+/* Header always ~1/3 of viewport, logo LEFT with nice padding. */
 .sbpr-header {
   height: 33vh;
   min-height: 220px;
-  padding: 0 24px;
+  padding-left: clamp(28px, 7vw, 92px);
+  padding-right: 24px;
   display:flex;
   align-items:center;
-  justify-content:center;
+  justify-content:flex-start;
 }
 
 .sbpr-logo { display:inline-block; position:relative; }
@@ -52,7 +53,7 @@
 .sbpr-logo:hover .sbpr-logo__img--default { opacity:0; }
 .sbpr-logo__text { font-size: 28px; letter-spacing:.08em; text-transform:uppercase; border-bottom: 1px solid rgba(0,0,0,.25); }
 
-/* Mosaic bleeds full viewport width even inside a constrained theme container. */
+/* Mosaic full-bleed */
 .sbpr-mosaic {
   flex: 1;
   position:relative;
@@ -64,23 +65,24 @@
 /* JS sets --sbpr-tile, --sbpr-gap, --sbpr-cols */
 .sbpr-mosaic__grid {
   display:grid;
-  grid-template-columns: repeat(var(--sbpr-cols, 120), var(--sbpr-tile, 12px));
-  grid-auto-rows: var(--sbpr-tile, 12px);
-  gap: var(--sbpr-gap, 2px);
+  grid-template-columns: repeat(var(--sbpr-cols, 12), var(--sbpr-tile, 96px));
+  grid-auto-rows: var(--sbpr-tile, 96px);
+  gap: var(--sbpr-gap, 6px);
   padding: 0 24px 24px;
   align-content: start;
   justify-content: start;
 }
 
 @media (max-width: 520px){
-  .sbpr-header { min-height: 190px; padding: 0 16px; }
-  .sbpr-mosaic__grid { padding: 0 16px 16px; }
+  .sbpr-header { min-height: 190px; padding-left: 18px; padding-right: 18px; }
+  .sbpr-mosaic__grid { padding: 0 18px 18px; gap: 5px; }
 }
 
+/* Tiles */
 .sbpr-tile {
   display:block;
-  width: var(--sbpr-tile, 12px);
-  height: var(--sbpr-tile, 12px);
+  width: var(--sbpr-tile, 96px);
+  height: var(--sbpr-tile, 96px);
   overflow:hidden;
   background: rgba(0,0,0,.06);
 }
@@ -95,25 +97,15 @@
   opacity: .7;
   transition: filter .08s ease, opacity .08s ease;
 }
-
 .sbpr-tile:hover .sbpr-tile__img { filter:none; opacity: 1; }
 
-/* Magnifier follows cursor (JS positions it). */
-.sbpr-mag {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 168px;
-  height: 168px;
-  border: 1px solid rgba(0,0,0,.2);
-  background:#fff;
-  display:none;
-  z-index: 9999;
-  pointer-events:none;
+/* Empty cells (non-links) */
+.sbpr-emptycell {
+  display:block;
+  width: var(--sbpr-tile, 96px);
+  height: var(--sbpr-tile, 96px);
+  background: transparent;
 }
-.sbpr-mag.is-on { display:block; }
-.sbpr-mag__inner { width:100%; height:100%; }
-.sbpr-mag__inner img { width:100%; height:100%; display:block; image-rendering: pixelated; }
 
 /* Punks index page: 4 wide, big, full color */
 .sbpr-index {
