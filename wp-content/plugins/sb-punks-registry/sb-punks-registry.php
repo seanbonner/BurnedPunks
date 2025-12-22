@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: SB Punks Registry
- * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks.
- * Version: 0.1.13
+ * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks + single punk layout.
+ * Version: 0.2.0
  * Author: SB
  */
 
@@ -12,10 +12,25 @@ final class SB_Punks_Registry {
 	const PT = 'sb_punk';
 	const OPT_KEY = 'sb_punks_registry_settings';
 
+	// Contracts (mainnet)
+	const WRAPPER_CONTRACT = '0x282BDD42f4eb70e7A9D9F40c8fEA0825B7f68C5D';
+
+	// CryptoPunks site helpers
+	const CP_DETAILS_BASE = 'https://cryptopunks.app/cryptopunks/details/';
+	const CP_ACCOUNT_BASE = 'https://cryptopunks.app/cryptopunks/accountinfo?account=';
+
 	// Meta keys
-	const META_PUNK_ID    = '_sbpr_punk_id';     // 0-9999
-	const META_INTENT     = '_sbpr_intent';      // intentional|accidental|''
-	const META_BURN_DATE  = '_sbpr_burn_date';   // YYYY-MM-DD
+	const META_PUNK_ID       = '_sbpr_punk_id';          // 0-9999 (kept in sync with title/slug)
+	const META_INTENT        = '_sbpr_intent';           // intentional|accidental|''
+	const META_BURN_DATE     = '_sbpr_burn_date';        // YYYY-MM-DD
+
+	const META_CLAIMER_WALLET = '_sbpr_claimer_wallet';
+	const META_CLAIMER_NAME   = '_sbpr_claimer_name';
+	const META_BURNER_WALLET  = '_sbpr_burner_wallet';
+	const META_BURNER_NAME    = '_sbpr_burner_name';
+	const META_FINAL_WALLET   = '_sbpr_final_wallet';
+	const META_FINAL_NAME     = '_sbpr_final_name';
+	const META_V1_WRAPPED     = '_sbpr_v1_wrapped';      // '1'|'0'
 
 	public static function init() : void {
 		add_action('init', [__CLASS__, 'register_cpt']);
@@ -35,7 +50,7 @@ final class SB_Punks_Registry {
 		add_filter('post_type_link', [__CLASS__, 'filter_sb_punk_link'], 10, 4);
 		add_filter('post_link', [__CLASS__, 'filter_sb_punk_link'], 10, 3);
 
-		// Use classic editor for this CPT to avoid "invalid block" warnings on migrated content.
+		// Use classic editor for this CPT.
 		add_filter('use_block_editor_for_post_type', [__CLASS__, 'disable_block_editor_for_cpt'], 10, 2);
 
 		// Hard-disable comments/pings for this CPT.
@@ -119,7 +134,7 @@ final class SB_Punks_Registry {
 			'top'
 		);
 
-		// Force /the-punks/ to always render our index (even if WP "Posts page" or theme loops are in the way).
+		// Force /the-punks/ to always render our index.
 		add_rewrite_rule(
 			'^the-punks/?$',
 			'index.php?sbpr_punks=1',
@@ -137,6 +152,12 @@ final class SB_Punks_Registry {
 			$t = plugin_dir_path(__FILE__) . 'templates/the-punks.php';
 			if (file_exists($t)) return $t;
 		}
+
+		if (is_singular(self::PT)) {
+			$t = plugin_dir_path(__FILE__) . 'templates/single-sb_punk.php';
+			if (file_exists($t)) return $t;
+		}
+
 		return $template;
 	}
 
@@ -151,24 +172,24 @@ final class SB_Punks_Registry {
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.1.13';
+		$ver = '0.2.0';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
 	}
 
 	public static function body_class($classes) {
-		if ((int)get_query_var('sbpr_punks') === 1) {
-			$classes[] = 'sbpr-punks-index';
-		}
+		if ((int)get_query_var('sbpr_punks') === 1) $classes[] = 'sbpr-punks-index';
+
 		if (is_front_page()) {
 			$post_id = get_queried_object_id();
 			if ($post_id) {
 				$content = (string)get_post_field('post_content', $post_id);
-				if ($content && has_shortcode($content, 'sb_punks_home')) {
-					$classes[] = 'sbpr-front';
-				}
+				if ($content && has_shortcode($content, 'sb_punks_home')) $classes[] = 'sbpr-front';
 			}
 		}
+
+		if (is_singular(self::PT)) $classes[] = 'sbpr-single';
+
 		return $classes;
 	}
 
@@ -248,38 +269,22 @@ final class SB_Punks_Registry {
 		return (int) str_replace('-', '', $d);
 	}
 
-	/**
-	 * Try to find a burn date in content.
-	 * Strategy:
-	 * 1) Prefer dates that appear near "burn" / "burned"
-	 * 2) Else pick the LAST date in the content (burn date is typically later than claim date)
-	 */
 	private static function extract_burn_date_from_content($content) : string {
 		$content = (string)$content;
 		if (!$content) return '';
 
-		// Find all dates with their positions.
 		if (!preg_match_all('/\b(20\d{2}-\d{2}-\d{2})\b/', $content, $matches, PREG_OFFSET_CAPTURE)) return '';
+		$dates = $matches[1];
 
-		$dates = $matches[1]; // [ [date, pos], ... ]
-		$best = '';
-
-		// Prefer a date within ~60 chars of "burn" or "burned" nearby.
 		foreach ($dates as $d) {
 			$date = $d[0];
 			$pos  = (int)$d[1];
 			$window_start = max(0, $pos - 80);
 			$window_len   = 160;
 			$window = strtolower(substr($content, $window_start, $window_len));
-			if (strpos($window, 'burn') !== false) {
-				$best = $date;
-				break;
-			}
+			if (strpos($window, 'burn') !== false) return $date;
 		}
 
-		if ($best) return $best;
-
-		// Otherwise choose the last date found.
 		$last = end($dates);
 		return $last ? (string)$last[0] : '';
 	}
@@ -341,7 +346,6 @@ final class SB_Punks_Registry {
 				$ak = self::date_key($a['burn_date']);
 				$bk = self::date_key($b['burn_date']);
 
-				// If either is missing burn_date, fall back to publish date (still deterministic).
 				if ($ak === 0 || $bk === 0) {
 					$ap = strtotime((string)$a['post_date']) ?: 0;
 					$bp = strtotime((string)$b['post_date']) ?: 0;
@@ -358,6 +362,132 @@ final class SB_Punks_Registry {
 
 		foreach ($items as &$it) { unset($it['post_date']); }
 		return $items;
+	}
+
+	// -------------------------
+	// Single rendering helpers
+	// -------------------------
+
+	public static function cp_details_url($punk_num) : string {
+		$n = preg_replace('/[^0-9]/', '', (string)$punk_num);
+		return esc_url(self::CP_DETAILS_BASE . $n);
+	}
+
+	public static function cp_account_url($wallet) : string {
+		$w = strtolower(trim((string)$wallet));
+		return esc_url(self::CP_ACCOUNT_BASE . $w);
+	}
+
+	public static function os_wrapped_url($punk_num) : string {
+		$n = preg_replace('/[^0-9]/', '', (string)$punk_num);
+		return esc_url('https://opensea.io/assets/ethereum/' . self::WRAPPER_CONTRACT . '/' . $n);
+	}
+
+	public static function extract_story_html($content) : string {
+		// Take everything after the first </h4> if present, otherwise return full content.
+		$content = (string)$content;
+		if (!$content) return '';
+
+		$pos = stripos($content, '</h4>');
+		if ($pos !== false) {
+			$after = substr($content, $pos + 5);
+			return $after;
+		}
+		return $content;
+	}
+
+	private static function parse_wallet_from_cp_account_href($href) : string {
+		$href = (string)$href;
+		if (!$href) return '';
+		if (preg_match('/account=0x[a-fA-F0-9]{40}/', $href, $m)) {
+			$parts = explode('account=', $m[0]);
+			return isset($parts[1]) ? $parts[1] : '';
+		}
+		return '';
+	}
+
+	private static function parse_first_cp_account_link($html) : array {
+		// returns [wallet, name]
+		$wallet = '';
+		$name = '';
+		if (preg_match('/<a[^>]+href="([^"]+account=0x[a-fA-F0-9]{40}[^"]*)"[^>]*>(.*?)<\/a>/i', $html, $m)) {
+			$wallet = self::parse_wallet_from_cp_account_href($m[1]);
+			$name = wp_strip_all_tags($m[2]);
+		}
+		return [$wallet, $name];
+	}
+
+	private static function parse_wallet_literal($html) : string {
+		if (preg_match('/0x[a-fA-F0-9]{40}/', $html, $m)) return $m[0];
+		return '';
+	}
+
+	private static function parse_section_value($html, $label) : string {
+		// Extract the chunk after "<strong>Label:</strong>" up to <br or </h4>
+		$label_q = preg_quote($label, '/');
+		if (preg_match('/<strong>\s*' . $label_q . '\s*:\s*<\/strong>\s*(.*?)(<br\s*\/?>|<\/h4>)/is', $html, $m)) {
+			return trim((string)$m[1]);
+		}
+		return '';
+	}
+
+	private static function maybe_migrate_meta_from_content($post_id, $post) : void {
+		// Only fill meta fields if they are empty; never overwrite user edits.
+		$content = (string)$post->post_content;
+		if (!$content) return;
+
+		$need = [
+			self::META_CLAIMER_WALLET,
+			self::META_BURNER_WALLET,
+			self::META_FINAL_WALLET,
+		];
+
+		$missing_any = false;
+		foreach ($need as $k) {
+			if (!get_post_meta($post_id, $k, true)) { $missing_any = true; break; }
+		}
+		// V1 wrapped can default to 0; only set if we detect wrapped.
+		$has_v1 = get_post_meta($post_id, self::META_V1_WRAPPED, true) !== '';
+
+		if (!$missing_any && $has_v1) return;
+
+		// Find the h4 block that contains the data lines.
+		if (!preg_match('/<h4[^>]*>(.*?)<\/h4>/is', $content, $m)) return;
+		$h4 = $m[1];
+
+		// Claimer
+		if (!get_post_meta($post_id, self::META_CLAIMER_WALLET, true)) {
+			$val = self::parse_section_value($h4, 'Claimer');
+			list($w, $name) = self::parse_first_cp_account_link($val);
+			if ($w) update_post_meta($post_id, self::META_CLAIMER_WALLET, strtolower($w));
+			if ($name && !get_post_meta($post_id, self::META_CLAIMER_NAME, true)) update_post_meta($post_id, self::META_CLAIMER_NAME, $name);
+		}
+
+		// Burner
+		if (!get_post_meta($post_id, self::META_BURNER_WALLET, true)) {
+			$val = self::parse_section_value($h4, 'Burner');
+			list($w, $name) = self::parse_first_cp_account_link($val);
+			if (!$w) $w = self::parse_wallet_literal($val);
+			if ($w) update_post_meta($post_id, self::META_BURNER_WALLET, strtolower($w));
+			if ($name && !get_post_meta($post_id, self::META_BURNER_NAME, true)) update_post_meta($post_id, self::META_BURNER_NAME, $name);
+		}
+
+		// Final Location
+		if (!get_post_meta($post_id, self::META_FINAL_WALLET, true)) {
+			$val = self::parse_section_value($h4, 'Final Location');
+			list($w, $name) = self::parse_first_cp_account_link($val);
+			if (!$w) $w = self::parse_wallet_literal($val);
+			if ($w) update_post_meta($post_id, self::META_FINAL_WALLET, strtolower($w));
+			if ($name && !get_post_meta($post_id, self::META_FINAL_NAME, true)) update_post_meta($post_id, self::META_FINAL_NAME, $name);
+		}
+
+		// V1 status (Wrapped/Unwrapped)
+		if (get_post_meta($post_id, self::META_V1_WRAPPED, true) === '') {
+			$val = self::parse_section_value($h4, 'V1');
+			$txt = strtolower(wp_strip_all_tags($val));
+			$wrapped = (strpos($txt, 'wrapped') !== false) ? '1' : '0';
+			update_post_meta($post_id, self::META_V1_WRAPPED, $wrapped);
+		}
 	}
 
 	// -------------------------
@@ -404,7 +534,7 @@ final class SB_Punks_Registry {
 		?>
 		<div class="wrap">
 			<h1>SB Punks Registry</h1>
-			<p><strong>Important:</strong> after updating this plugin, go to <em>Settings → Permalinks</em> and click <em>Save</em> once.</p>
+			<p><strong>After updating:</strong> Settings → Permalinks → Save (once).</p>
 			<form method="post" action="options.php">
 				<?php
 				settings_fields('sb_punks_registry');
@@ -449,6 +579,17 @@ final class SB_Punks_Registry {
 
 	public static function add_meta_boxes() : void {
 		add_meta_box('sbpr_meta', 'Punk Details', [__CLASS__, 'render_meta_box'], self::PT, 'side', 'high');
+		add_meta_box('sbpr_party', 'Participants', [__CLASS__, 'render_party_box'], self::PT, 'normal', 'high');
+		add_meta_box('sbpr_status', 'Status', [__CLASS__, 'render_status_box'], self::PT, 'normal', 'default');
+	}
+
+	private static function field_row($label, $name, $value, $placeholder = '') {
+		?>
+		<p style="margin:0 0 12px;">
+			<label><strong><?php echo esc_html($label); ?></strong></label><br/>
+			<input type="text" name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr($value); ?>" placeholder="<?php echo esc_attr($placeholder); ?>" style="width:100%;" />
+		</p>
+		<?php
 	}
 
 	public static function render_meta_box($post) : void {
@@ -475,8 +616,47 @@ final class SB_Punks_Registry {
 
 		<p>
 			<label for="sbpr_burn_date"><strong>Burn date (YYYY-MM-DD)</strong></label><br/>
-			<input type="text" id="sbpr_burn_date" name="sbpr_burn_date" value="<?php echo esc_attr($burn_date); ?>" placeholder="2021-01-01" style="width:100%;" />
+			<input type="text" id="sbpr_burn_date" name="sbpr_burn_date" value="<?php echo esc_attr($burn_date); ?>" placeholder="2021-04-21" style="width:100%;" />
 			<span class="description">Controls ordering on /the-punks/ (newest first).</span>
+		</p>
+		<?php
+	}
+
+	public static function render_party_box($post) : void {
+		$claimer_wallet = (string)get_post_meta($post->ID, self::META_CLAIMER_WALLET, true);
+		$claimer_name   = (string)get_post_meta($post->ID, self::META_CLAIMER_NAME, true);
+		$burner_wallet  = (string)get_post_meta($post->ID, self::META_BURNER_WALLET, true);
+		$burner_name    = (string)get_post_meta($post->ID, self::META_BURNER_NAME, true);
+		$final_wallet   = (string)get_post_meta($post->ID, self::META_FINAL_WALLET, true);
+		$final_name     = (string)get_post_meta($post->ID, self::META_FINAL_NAME, true);
+
+		echo '<p class="description" style="margin-top:0;">If a name is set, it will display instead of the wallet address (but still links to that wallet on cryptopunks.app).</p>';
+
+		self::field_row('Claimer wallet', 'sbpr_claimer_wallet', $claimer_wallet, '0x...');
+		self::field_row('Claimer name (optional)', 'sbpr_claimer_name', $claimer_name, 'Psyborg');
+
+		echo '<hr/>';
+
+		self::field_row('Burner wallet', 'sbpr_burner_wallet', $burner_wallet, '0x...');
+		self::field_row('Burner name (optional)', 'sbpr_burner_name', $burner_name, '');
+
+		echo '<hr/>';
+
+		self::field_row('Final location wallet', 'sbpr_final_wallet', $final_wallet, '0x...');
+		self::field_row('Final location name (optional)', 'sbpr_final_name', $final_name, 'Cryptopunks Contract');
+	}
+
+	public static function render_status_box($post) : void {
+		$v1_wrapped = (string)get_post_meta($post->ID, self::META_V1_WRAPPED, true);
+		$checked = ($v1_wrapped === '1') ? 'checked' : '';
+		?>
+		<p>
+			<label>
+				<input type="checkbox" name="sbpr_v1_wrapped" value="1" <?php echo $checked; ?> />
+				<strong>V1 Wrapped</strong>
+			</label>
+			<br/>
+			<span class="description">If checked, the template will automatically link to OpenSea for the wrapper contract using this punk number.</span>
 		</p>
 		<?php
 	}
@@ -486,13 +666,17 @@ final class SB_Punks_Registry {
 		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
 		if (!current_user_can('edit_post', $post_id)) return;
 
+		// Parse legacy content into meta fields (only when fields are empty).
+		self::maybe_migrate_meta_from_content($post_id, $post);
+
+		// Punk # (keep title/slug synced)
 		if (isset($_POST['sbpr_punk_id']) && $_POST['sbpr_punk_id'] !== '') {
 			$punk_id = (int)$_POST['sbpr_punk_id'];
 			if ($punk_id >= 0 && $punk_id <= 9999) {
 				update_post_meta($post_id, self::META_PUNK_ID, (string)$punk_id);
 
 				$desired = (string)$punk_id;
-				if ($post->post_name !== $desired) {
+				if ($post->post_name !== $desired || $post->post_title !== $desired) {
 					remove_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10);
 					wp_update_post([
 						'ID' => $post_id,
@@ -510,9 +694,28 @@ final class SB_Punks_Registry {
 
 		$burn_date_in = isset($_POST['sbpr_burn_date']) ? (string)$_POST['sbpr_burn_date'] : '';
 		$burn_date = self::normalize_date($burn_date_in);
-		if ($burn_date) {
-			update_post_meta($post_id, self::META_BURN_DATE, $burn_date);
-		}
+		if ($burn_date) update_post_meta($post_id, self::META_BURN_DATE, $burn_date);
+
+		// Participants
+		$claimer_wallet = isset($_POST['sbpr_claimer_wallet']) ? sanitize_text_field((string)$_POST['sbpr_claimer_wallet']) : '';
+		$claimer_name   = isset($_POST['sbpr_claimer_name']) ? sanitize_text_field((string)$_POST['sbpr_claimer_name']) : '';
+		$burner_wallet  = isset($_POST['sbpr_burner_wallet']) ? sanitize_text_field((string)$_POST['sbpr_burner_wallet']) : '';
+		$burner_name    = isset($_POST['sbpr_burner_name']) ? sanitize_text_field((string)$_POST['sbpr_burner_name']) : '';
+		$final_wallet   = isset($_POST['sbpr_final_wallet']) ? sanitize_text_field((string)$_POST['sbpr_final_wallet']) : '';
+		$final_name     = isset($_POST['sbpr_final_name']) ? sanitize_text_field((string)$_POST['sbpr_final_name']) : '';
+
+		if ($claimer_wallet) update_post_meta($post_id, self::META_CLAIMER_WALLET, strtolower($claimer_wallet));
+		if ($claimer_name !== '') update_post_meta($post_id, self::META_CLAIMER_NAME, $claimer_name);
+
+		if ($burner_wallet) update_post_meta($post_id, self::META_BURNER_WALLET, strtolower($burner_wallet));
+		if ($burner_name !== '') update_post_meta($post_id, self::META_BURNER_NAME, $burner_name);
+
+		if ($final_wallet) update_post_meta($post_id, self::META_FINAL_WALLET, strtolower($final_wallet));
+		if ($final_name !== '') update_post_meta($post_id, self::META_FINAL_NAME, $final_name);
+
+		// V1 status checkbox
+		$v1 = isset($_POST['sbpr_v1_wrapped']) ? '1' : '0';
+		update_post_meta($post_id, self::META_V1_WRAPPED, $v1);
 	}
 }
 
