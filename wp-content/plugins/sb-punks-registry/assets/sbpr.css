@@ -128,3 +128,19 @@
 }
 
 .sbpr-empty { padding: 24px; opacity: .7; text-align:center; }
+
+
+/* 0.1.12 hotfix: force logo LEFT (some themes center header content aggressively) */
+.sbpr-front .sbpr-header{
+  width: 100vw !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+  box-sizing: border-box !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+.sbpr-front .sbpr-logo{
+  display: block !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
