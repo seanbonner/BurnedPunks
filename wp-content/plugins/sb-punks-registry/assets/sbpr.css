@@ -1,40 +1,128 @@
 
-/* SB Punks Registry 0.1.5 — stabilize + homepage style direction */
+/* SB Punks Registry 0.1.6 — homepage matches mock more closely */
+
+/* Front page: nuke theme header/nav/logo wrappers (various themes). */
+.sbpr-front header#masthead,
 .sbpr-front #masthead,
 .sbpr-front .site-header,
-.sbpr-front header#masthead,
+.sbpr-front .wp-site-blocks > header,
+.sbpr-front #page > header,
+.sbpr-front .header,
+.sbpr-front .site-branding,
+.sbpr-front .custom-logo-link,
 .sbpr-front nav,
 .sbpr-front .primary-navigation,
 .sbpr-front .main-navigation,
-.sbpr-front .wp-block-navigation { display:none !important; }
+.sbpr-front .wp-block-navigation,
+.sbpr-front .menu,
+.sbpr-front .navbar { display:none !important; }
 
-.sbpr-home { background:#fff; color:#000; }
-.sbpr-header { padding: 72px 24px 44px; display:flex; justify-content:center; }
+/* Also remove theme width constraints/padding on front page. */
+.sbpr-front .site,
+.sbpr-front #page,
+.sbpr-front main,
+.sbpr-front #primary,
+.sbpr-front .site-main,
+.sbpr-front .entry-content,
+.sbpr-front .wp-block-group,
+.sbpr-front .wp-site-blocks { max-width:none !important; width:100% !important; margin:0 !important; padding:0 !important; }
+
+.sbpr-home {
+  background:#fff;
+  color:#000;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+.sbpr-header {
+  padding: 72px 24px 32px;
+  display:flex;
+  justify-content:flex-start; /* left aligned like mock */
+}
+
 .sbpr-logo { display:inline-block; position:relative; }
-.sbpr-logo__img { display:block; max-width:min(560px, 86vw); height:auto; }
+.sbpr-logo__img { display:block; max-width:min(640px, 86vw); height:auto; }
 .sbpr-logo__img--hover { position:absolute; inset:0; opacity:0; transition:opacity .12s ease; }
 .sbpr-logo:hover .sbpr-logo__img--hover { opacity:1; }
 .sbpr-logo:hover .sbpr-logo__img--default { opacity:0; }
 .sbpr-logo__text { font-size: 28px; letter-spacing:.08em; text-transform:uppercase; border-bottom: 1px solid rgba(0,0,0,.25); }
 
-.sbpr-mosaic { padding: 0 18px 72px; position:relative; }
-.sbpr-mosaic__grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(14px, 1fr)); gap: 2px; }
-@media (max-width: 520px){ .sbpr-mosaic__grid { grid-template-columns: repeat(auto-fill, minmax(11px, 1fr)); } }
+.sbpr-mosaic {
+  flex: 1;
+  position:relative;
+  padding: 0; /* full width */
+}
 
-.sbpr-tile { display:block; aspect-ratio: 1 / 1; overflow:hidden; background: rgba(0,0,0,.06); }
-.sbpr-tile__img, .sbpr-tile__svg svg { width:100%; height:100%; display:block; object-fit:cover; image-rendering: pixelated; }
+/* JS sets --sbpr-tile and --sbpr-gap and --sbpr-cols and --sbpr-rows */
+.sbpr-mosaic__grid {
+  display:grid;
+  grid-template-columns: repeat(var(--sbpr-cols, 100), var(--sbpr-tile, 12px));
+  grid-auto-rows: var(--sbpr-tile, 12px);
+  gap: var(--sbpr-gap, 2px);
+  padding: 0 24px 24px;
+  align-content: start;
+  justify-content: start;
+}
 
-.sbpr-tile__img, .sbpr-tile__svg { filter: grayscale(100%); opacity: .7; transition: filter .08s ease, opacity .08s ease; }
-.sbpr-tile:hover .sbpr-tile__img,
-.sbpr-tile:hover .sbpr-tile__svg { filter:none; opacity: 1; }
+@media (max-width: 520px){
+  .sbpr-header { padding: 56px 16px 24px; }
+  .sbpr-mosaic__grid { padding: 0 16px 16px; }
+}
 
-.sbpr-tile__ph { display:block; width:100%; height:100%; background: rgba(0,0,0,.12); }
+.sbpr-tile {
+  display:block;
+  width: var(--sbpr-tile, 12px);
+  height: var(--sbpr-tile, 12px);
+  overflow:hidden;
+  background: rgba(0,0,0,.06);
+}
 
-.sbpr-mag { position: fixed; right: 18px; bottom: 18px; width: 168px; height: 168px; border: 1px solid rgba(0,0,0,.2); background:#fff; display:none; z-index: 9999; }
+.sbpr-tile__img {
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+  image-rendering: pixelated;
+  filter: grayscale(100%);
+  opacity: .7;
+  transition: filter .08s ease, opacity .08s ease;
+}
+
+.sbpr-tile:hover .sbpr-tile__img {
+  filter:none;
+  opacity: 1;
+}
+
+/* Magnifier fixed bottom-right */
+.sbpr-mag {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 168px;
+  height: 168px;
+  border: 1px solid rgba(0,0,0,.2);
+  background:#fff;
+  display:none;
+  z-index: 9999;
+}
 .sbpr-mag.is-on { display:block; }
 .sbpr-mag__inner { width:100%; height:100%; }
-.sbpr-mag__inner img, .sbpr-mag__inner svg { width:100%; height:100%; display:block; image-rendering: pixelated; }
+.sbpr-mag__inner img { width:100%; height:100%; display:block; image-rendering: pixelated; }
+
+/* "Punks" index page (full color, bigger, readable) */
+.sbpr-index {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  padding: 24px;
+}
+@media (max-width: 520px){
+  .sbpr-index { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); padding: 16px; gap: 10px; }
+}
+.sbpr-index__card { position:relative; display:block; background:#fff; border:1px solid rgba(0,0,0,.12); }
+.sbpr-index__img { width:100%; height:auto; display:block; image-rendering: pixelated; }
+.sbpr-index__ph { display:block; aspect-ratio: 1 / 1; background: rgba(0,0,0,.08); }
+.sbpr-index__num { position:absolute; left:8px; top:8px; font: 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: rgba(255,255,255,.8); padding: 3px 6px; border: 1px solid rgba(0,0,0,.12); }
 
 .sbpr-empty { padding: 24px; opacity: .7; text-align:center; }
-
-.sbpr-gridpage { padding: 24px 18px; background:#fff; }

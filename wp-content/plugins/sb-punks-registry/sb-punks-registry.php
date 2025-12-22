@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: SB Punks Registry
- * Description: BurnedPunks/MuseumPunks registry CPT + homepage mosaic + numeric permalinks.
- * Version: 0.1.5
+ * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks.
+ * Version: 0.1.6
  * Author: SB
  */
 
@@ -15,14 +15,19 @@ final class SB_Punks_Registry {
 	public static function init() : void {
 		add_action('init', [__CLASS__, 'register_cpt']);
 		add_action('init', [__CLASS__, 'register_rewrites'], 20);
-		add_filter('query_vars', [__CLASS__, 'query_vars']);
+
 		add_shortcode('sb_punks_home', [__CLASS__, 'shortcode_home']);
-		add_shortcode('sb_punks_grid', [__CLASS__, 'shortcode_grid']);
+		add_shortcode('sb_punks_grid', [__CLASS__, 'shortcode_grid_mosaic']);
+		add_shortcode('sb_punks_index', [__CLASS__, 'shortcode_index']);
 
 		add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
 		add_filter('body_class', [__CLASS__, 'body_class']);
 
-		// Admin UX
+		// Force pretty /####/ permalinks for sb_punk posts.
+		add_filter('post_type_link', [__CLASS__, 'filter_sb_punk_link'], 10, 4);
+		add_filter('post_link', [__CLASS__, 'filter_sb_punk_link'], 10, 3);
+
+		// Admin UX (kept minimal)
 		add_action('admin_menu', [__CLASS__, 'register_settings_page']);
 		add_action('admin_init', [__CLASS__, 'register_settings']);
 		add_action('add_meta_boxes', [__CLASS__, 'add_meta_boxes']);
@@ -52,26 +57,24 @@ final class SB_Punks_Registry {
 	}
 
 	public static function register_cpt() : void {
-		$labels = [
-			'name' => 'Punks',
-			'singular_name' => 'Punk',
-		];
-
 		register_post_type(self::PT, [
-			'labels' => $labels,
+			'labels' => [
+				'name' => 'Punks',
+				'singular_name' => 'Punk',
+			],
 			'public' => true,
 			'publicly_queryable' => true,
 			'has_archive' => false,
 			'show_in_rest' => true,
 			'menu_icon' => 'dashicons-art',
 			'supports' => ['title','editor','thumbnail','excerpt','revisions'],
-			'rewrite' => false,        // we supply our own numeric rewrite
-			'query_var' => 'sb_punk',  // allows ?sb_punk=5449 as fallback, but we want /5449/
+			'rewrite' => false,       // we provide our own numeric rewrite
+			'query_var' => 'sb_punk', // fallback query var
 		]);
 	}
 
 	public static function register_rewrites() : void {
-		// /5449/ -> post_type=sb_punk&name=5449
+		// /5449/ -> sb_punk with slug/name 5449
 		add_rewrite_rule(
 			'^([0-9]{1,5})/?$',
 			'index.php?post_type=' . self::PT . '&name=$matches[1]',
@@ -79,20 +82,20 @@ final class SB_Punks_Registry {
 		);
 	}
 
-	public static function query_vars($vars) {
-		// no custom vars right now, but keep hook for future
-		return $vars;
+	public static function filter_sb_punk_link($permalink, $post, $leavename = false) {
+		if (is_object($post) && isset($post->post_type) && $post->post_type === self::PT) {
+			$slug = (string)$post->post_name;
+			if (preg_match('/^[0-9]{1,5}$/', $slug)) {
+				return home_url('/' . $slug . '/');
+			}
+		}
+		return $permalink;
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.1.5';
+		$ver = '0.1.6';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
-
-		$s = self::get_settings();
-		wp_localize_script('sbpr', 'SBPR', [
-			'aboutUrl' => $s['about_url'] ?: '/about/',
-		]);
 	}
 
 	public static function body_class($classes) {
@@ -108,7 +111,9 @@ final class SB_Punks_Registry {
 		return $classes;
 	}
 
-	// --- Shortcodes ---
+	// -------------------------
+	// Shortcodes
+	// -------------------------
 
 	public static function shortcode_home($atts = []) : string {
 		$s = self::get_settings();
@@ -116,8 +121,7 @@ final class SB_Punks_Registry {
 		$logo_default = esc_url($s['logo_default_url']);
 		$logo_hover = esc_url($s['logo_hover_url']);
 
-		$punk_ids = self::get_numeric_slug_posts();
-		$grid = self::render_mosaic($punk_ids, 1800);
+		$items = self::get_punk_items(true); // shuffled
 
 		ob_start(); ?>
 		<div class="sbpr-home">
@@ -135,7 +139,10 @@ final class SB_Punks_Registry {
 			</header>
 
 			<section class="sbpr-mosaic" aria-label="Punks mosaic">
-				<?php echo $grid; ?>
+				<div class="sbpr-mosaic__grid"
+					 data-sbpr-items="<?php echo esc_attr(wp_json_encode($items)); ?>"
+					 data-sbpr-mode="home"></div>
+
 				<div class="sbpr-mag" aria-hidden="true">
 					<div class="sbpr-mag__inner"></div>
 				</div>
@@ -145,58 +152,37 @@ final class SB_Punks_Registry {
 		return (string)ob_get_clean();
 	}
 
-	public static function shortcode_grid($atts = []) : string {
-		$punk_ids = self::get_numeric_slug_posts();
-		$grid = self::render_mosaic($punk_ids, 900);
-
+	// Kept for debugging/legacy; mosaic repeated with fixed count.
+	public static function shortcode_grid_mosaic($atts = []) : string {
+		$items = self::get_punk_items(false);
 		ob_start(); ?>
 		<div class="sbpr-gridpage">
-			<?php echo $grid; ?>
+			<div class="sbpr-mosaic__grid"
+				 data-sbpr-items="<?php echo esc_attr(wp_json_encode($items)); ?>"
+				 data-sbpr-mode="mosaic"></div>
 		</div>
 		<?php
 		return (string)ob_get_clean();
 	}
 
-	private static function render_mosaic(array $post_ids, int $max_tiles) : string {
-		if (empty($post_ids)) {
-			return '<p class="sbpr-empty">No punks found yet.</p>';
-		}
+	// The "nice" Punks index: big, full color, shows the number.
+	public static function shortcode_index($atts = []) : string {
+		$items = self::get_punk_items(false);
 
-		$links = [];
-		$thumbs = [];
-		$svgs = [];
+		if (empty($items)) return '<p class="sbpr-empty">No punks found yet.</p>';
 
-		foreach ($post_ids as $id) {
-			$links[] = get_permalink($id);
-
-			$svg = (string)get_post_meta($id, '_sbpr_svg', true);
-			$svgs[] = $svg ?: '';
-
-			$thumb_url = '';
-			if (has_post_thumbnail($id)) {
-				$thumb_url = (string)get_the_post_thumbnail_url($id, 'medium');
-			}
-			$thumbs[] = $thumb_url;
-		}
-
-		$len = count($links);
-		$total = min($max_tiles, max($len, $len * (int)ceil($max_tiles / max(1,$len))));
-
-		$out = '<div class="sbpr-mosaic__grid" data-sbpr-mosaic="1">';
-		for ($i=0; $i<$total; $i++) {
-			$idx = $i % $len;
-			$href = esc_url($links[$idx]);
-			$thumb = esc_url($thumbs[$idx]);
-			$svg = $svgs[$idx];
-
-			$out .= '<a class="sbpr-tile" href="'.$href.'" aria-label="Punk">';
+		$out = '<div class="sbpr-index">';
+		foreach ($items as $it) {
+			$href = esc_url($it['href']);
+			$thumb = esc_url($it['thumb']);
+			$num = esc_html($it['num']);
+			$out .= '<a class="sbpr-index__card" href="'.$href.'">';
 			if ($thumb) {
-				$out .= '<img class="sbpr-tile__img" src="'.$thumb.'" alt="" loading="lazy" decoding="async" />';
-			} elseif ($svg) {
-				$out .= '<span class="sbpr-tile__svg" aria-hidden="true">'.$svg.'</span>';
+				$out .= '<img class="sbpr-index__img" src="'.$thumb.'" alt="" loading="lazy" decoding="async" />';
 			} else {
-				$out .= '<span class="sbpr-tile__ph" aria-hidden="true"></span>';
+				$out .= '<span class="sbpr-index__ph" aria-hidden="true"></span>';
 			}
+			$out .= '<span class="sbpr-index__num">'.$num.'</span>';
 			$out .= '</a>';
 		}
 		$out .= '</div>';
@@ -204,16 +190,22 @@ final class SB_Punks_Registry {
 		return $out;
 	}
 
+	// -------------------------
+	// Data helpers
+	// -------------------------
+
 	/**
-	 * Return publish posts whose slug is numeric (1-5 digits), ordered numerically.
-	 * This makes the grid resilient even if post types change.
+	 * Returns array of punk items:
+	 * [
+	 *   { "num": "5449", "href": "https://site/5449/", "thumb": "https://..." },
+	 * ]
 	 */
-	private static function get_numeric_slug_posts() : array {
+	private static function get_punk_items(bool $shuffle) : array {
 		global $wpdb;
 
-		// Only published posts of any type, numeric slug, ignore revisions/nav items.
+		// Prefer CPT posts, but fall back to any numeric-slug published posts.
 		$sql = "
-			SELECT ID
+			SELECT ID, post_name
 			FROM {$wpdb->posts}
 			WHERE post_status='publish'
 			  AND post_type NOT IN ('revision','nav_menu_item','attachment')
@@ -221,13 +213,39 @@ final class SB_Punks_Registry {
 			ORDER BY CAST(post_name AS UNSIGNED) ASC
 			LIMIT 2000
 		";
+		$rows = $wpdb->get_results($sql);
+		if (!$rows) return [];
 
-		$ids = $wpdb->get_col($sql);
-		$ids = array_map('intval', $ids ?: []);
-		return $ids;
+		$items = [];
+		foreach ($rows as $r) {
+			$id = (int)$r->ID;
+			$slug = (string)$r->post_name;
+
+			// Force pretty numeric link always.
+			$href = home_url('/' . $slug . '/');
+
+			$thumb = '';
+			if (has_post_thumbnail($id)) {
+				$thumb = (string)get_the_post_thumbnail_url($id, 'medium');
+			}
+
+			$items[] = [
+				'num' => $slug,
+				'href' => $href,
+				'thumb' => $thumb,
+			];
+		}
+
+		if ($shuffle && count($items) > 1) {
+			shuffle($items);
+		}
+
+		return $items;
 	}
 
-	// --- Admin: settings + meta ---
+	// -------------------------
+	// Admin: settings + meta
+	// -------------------------
 
 	public static function register_settings_page() : void {
 		add_options_page(
@@ -256,12 +274,12 @@ final class SB_Punks_Registry {
 
 	public static function sanitize_settings($in) : array {
 		if (!is_array($in)) return [];
-		$out = [];
-		$out['mode'] = ($in['mode'] ?? 'burned') === 'museum' ? 'museum' : 'burned';
-		$out['about_url'] = esc_url_raw((string)($in['about_url'] ?? '/about/'));
-		$out['logo_default_url'] = esc_url_raw((string)($in['logo_default_url'] ?? ''));
-		$out['logo_hover_url'] = esc_url_raw((string)($in['logo_hover_url'] ?? ''));
-		return $out;
+		return [
+			'mode' => (($in['mode'] ?? 'burned') === 'museum') ? 'museum' : 'burned',
+			'about_url' => esc_url_raw((string)($in['about_url'] ?? '/about/')),
+			'logo_default_url' => esc_url_raw((string)($in['logo_default_url'] ?? '')),
+			'logo_hover_url' => esc_url_raw((string)($in['logo_hover_url'] ?? '')),
+		];
 	}
 
 	public static function render_settings_page() : void {
@@ -269,8 +287,7 @@ final class SB_Punks_Registry {
 		?>
 		<div class="wrap">
 			<h1>SB Punks Registry</h1>
-			<p>This build is stable and restores /####/ permalinks. Chain import is not re-enabled yet.</p>
-			<p><strong>IMPORTANT:</strong> after updating this plugin, go to <em>Settings → Permalinks</em> and click <em>Save</em> once.</p>
+			<p><strong>Important:</strong> after updating this plugin, go to <em>Settings → Permalinks</em> and click <em>Save</em> once.</p>
 			<form method="post" action="options.php">
 				<?php
 				settings_fields('sb_punks_registry');
@@ -303,7 +320,6 @@ final class SB_Punks_Registry {
 		$s = self::get_settings();
 		?>
 		<input type="text" class="regular-text" name="<?php echo esc_attr(self::OPT_KEY); ?>[logo_default_url]" value="<?php echo esc_attr($s['logo_default_url']); ?>" />
-		<p class="description">Paste a full image URL.</p>
 		<?php
 	}
 
@@ -311,7 +327,6 @@ final class SB_Punks_Registry {
 		$s = self::get_settings();
 		?>
 		<input type="text" class="regular-text" name="<?php echo esc_attr(self::OPT_KEY); ?>[logo_hover_url]" value="<?php echo esc_attr($s['logo_hover_url']); ?>" />
-		<p class="description">Optional hover-swap image URL.</p>
 		<?php
 	}
 
@@ -336,7 +351,6 @@ final class SB_Punks_Registry {
 				<option value="accidental" <?php selected($intent, 'accidental'); ?>>Accidental</option>
 			</select>
 		</p>
-		<p class="description">If you want /####/ URLs, keep the post title/slug numeric.</p>
 		<?php
 	}
 
