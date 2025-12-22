@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks.
- * Version: 0.1.10
+ * Version: 0.1.11
  * Author: SB
  */
 
@@ -20,6 +20,9 @@ final class SB_Punks_Registry {
 	public static function init() : void {
 		add_action('init', [__CLASS__, 'register_cpt']);
 		add_action('init', [__CLASS__, 'register_rewrites'], 20);
+		add_filter('query_vars', [__CLASS__, 'register_query_vars']);
+		add_filter('template_include', [__CLASS__, 'template_override'], 50);
+
 		add_action('init', [__CLASS__, 'force_no_comments'], 30);
 
 		add_shortcode('sb_punks_home', [__CLASS__, 'shortcode_home']);
@@ -109,11 +112,32 @@ final class SB_Punks_Registry {
 	}
 
 	public static function register_rewrites() : void {
+		// /5449/ -> sb_punk with slug/name 5449
 		add_rewrite_rule(
 			'^([0-9]{1,5})/?$',
 			'index.php?post_type=' . self::PT . '&name=$matches[1]',
 			'top'
 		);
+
+		// Force /the-punks/ to always render our index (even if WP "Posts page" or theme loops are in the way).
+		add_rewrite_rule(
+			'^the-punks/?$',
+			'index.php?sbpr_punks=1',
+			'top'
+		);
+	}
+
+	public static function register_query_vars($vars) {
+		$vars[] = 'sbpr_punks';
+		return $vars;
+	}
+
+	public static function template_override($template) {
+		if ((int)get_query_var('sbpr_punks') === 1) {
+			$t = plugin_dir_path(__FILE__) . 'templates/the-punks.php';
+			if (file_exists($t)) return $t;
+		}
+		return $template;
 	}
 
 	public static function filter_sb_punk_link($permalink, $post, $leavename = false) {
@@ -127,12 +151,15 @@ final class SB_Punks_Registry {
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.1.10';
+		$ver = '0.1.11';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
 	}
 
 	public static function body_class($classes) {
+		if ((int)get_query_var('sbpr_punks') === 1) {
+			$classes[] = 'sbpr-punks-index';
+		}
 		if (is_front_page()) {
 			$post_id = get_queried_object_id();
 			if ($post_id) {
@@ -144,6 +171,10 @@ final class SB_Punks_Registry {
 		}
 		return $classes;
 	}
+
+	// -------------------------
+	// Shortcodes
+	// -------------------------
 
 	public static function shortcode_home($atts = []) : string {
 		$s = self::get_settings();
@@ -201,6 +232,10 @@ final class SB_Punks_Registry {
 		return $out;
 	}
 
+	// -------------------------
+	// Sorting helpers
+	// -------------------------
+
 	private static function normalize_date($s) : string {
 		$s = (string)$s;
 		if (preg_match('/\b(20\d{2}-\d{2}-\d{2})\b/', $s, $m)) return $m[1];
@@ -212,6 +247,46 @@ final class SB_Punks_Registry {
 		if (!$d) return 0;
 		return (int) str_replace('-', '', $d);
 	}
+
+	/**
+	 * Try to find a burn date in content.
+	 * Strategy:
+	 * 1) Prefer dates that appear near "burn" / "burned"
+	 * 2) Else pick the LAST date in the content (burn date is typically later than claim date)
+	 */
+	private static function extract_burn_date_from_content($content) : string {
+		$content = (string)$content;
+		if (!$content) return '';
+
+		// Find all dates with their positions.
+		if (!preg_match_all('/\b(20\d{2}-\d{2}-\d{2})\b/', $content, $matches, PREG_OFFSET_CAPTURE)) return '';
+
+		$dates = $matches[1]; // [ [date, pos], ... ]
+		$best = '';
+
+		// Prefer a date within ~60 chars of "burn" or "burned" nearby.
+		foreach ($dates as $d) {
+			$date = $d[0];
+			$pos  = (int)$d[1];
+			$window_start = max(0, $pos - 80);
+			$window_len   = 160;
+			$window = strtolower(substr($content, $window_start, $window_len));
+			if (strpos($window, 'burn') !== false) {
+				$best = $date;
+				break;
+			}
+		}
+
+		if ($best) return $best;
+
+		// Otherwise choose the last date found.
+		$last = end($dates);
+		return $last ? (string)$last[0] : '';
+	}
+
+	// -------------------------
+	// Data helpers
+	// -------------------------
 
 	private static function get_punk_items(bool $sort_by_burn_date) : array {
 		global $wpdb;
@@ -249,7 +324,7 @@ final class SB_Punks_Registry {
 			$burn_date = self::normalize_date((string)get_post_meta($id, self::META_BURN_DATE, true));
 			if (!$burn_date) {
 				$content = (string)get_post_field('post_content', $id);
-				$burn_date = self::normalize_date($content);
+				$burn_date = self::extract_burn_date_from_content($content);
 			}
 
 			$items[] = [
@@ -266,6 +341,13 @@ final class SB_Punks_Registry {
 				$ak = self::date_key($a['burn_date']);
 				$bk = self::date_key($b['burn_date']);
 
+				// If either is missing burn_date, fall back to publish date (still deterministic).
+				if ($ak === 0 || $bk === 0) {
+					$ap = strtotime((string)$a['post_date']) ?: 0;
+					$bp = strtotime((string)$b['post_date']) ?: 0;
+					if ($ap !== $bp) return $bp <=> $ap;
+				}
+
 				if ($ak === 0 && $bk !== 0) return 1;
 				if ($bk === 0 && $ak !== 0) return -1;
 
@@ -277,6 +359,10 @@ final class SB_Punks_Registry {
 		foreach ($items as &$it) { unset($it['post_date']); }
 		return $items;
 	}
+
+	// -------------------------
+	// Admin: settings + meta
+	// -------------------------
 
 	public static function register_settings_page() : void {
 		add_options_page(
@@ -371,6 +457,7 @@ final class SB_Punks_Registry {
 		$punk_id = (string)get_post_meta($post->ID, self::META_PUNK_ID, true);
 		$intent = (string)get_post_meta($post->ID, self::META_INTENT, true);
 		$burn_date = (string)get_post_meta($post->ID, self::META_BURN_DATE, true);
+
 		?>
 		<p>
 			<label for="sbpr_punk_id"><strong>Punk #</strong></label><br/>
@@ -389,6 +476,7 @@ final class SB_Punks_Registry {
 		<p>
 			<label for="sbpr_burn_date"><strong>Burn date (YYYY-MM-DD)</strong></label><br/>
 			<input type="text" id="sbpr_burn_date" name="sbpr_burn_date" value="<?php echo esc_attr($burn_date); ?>" placeholder="2021-01-01" style="width:100%;" />
+			<span class="description">Controls ordering on /the-punks/ (newest first).</span>
 		</p>
 		<?php
 	}
