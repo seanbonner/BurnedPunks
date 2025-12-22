@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: CPT + on-chain import + homepage mosaic for BurnedPunks / MuseumPunks.
- * Version: 0.1.1
+ * Version: 0.1.3
  * Author: SB
  */
 
@@ -65,6 +65,7 @@ final class SB_Punks_Registry {
 		add_action('wp_enqueue_scripts', [__CLASS__, 'front_assets']);
 
 		add_shortcode('sb_punks_home', [__CLASS__, 'shortcode_home']);
+		add_shortcode('sb_punks_grid', [__CLASS__, 'shortcode_grid']);
 
 		add_action('rest_api_init', [__CLASS__, 'register_rest_routes']);
 
@@ -436,10 +437,15 @@ final class SB_Punks_Registry {
 	public static function admin_assets(string $hook) : void {
 		global $post;
 		if (($hook === 'post.php' || $hook === 'post-new.php') && $post && $post->post_type === self::CPT) {
-			wp_enqueue_script('sbpr-admin', plugin_dir_url(__FILE__) . 'assets/admin.js', ['jquery'], '0.1.1', true);
+			wp_enqueue_script('sbpr-admin', plugin_dir_url(__FILE__) . 'assets/admin.js', ['jquery'], '0.1.3', true);
 			wp_localize_script('sbpr-admin', 'SBPR_ADMIN', [
 				'ajax_url' => admin_url('admin-ajax.php'),
 				'nonce' => wp_create_nonce('sbpr_import'),
+				'rpc_urls' => self::rpc_urls(),
+				'contract_data' => self::CONTRACT_DATA,
+				'contract_v2' => self::CONTRACT_V2,
+				'contract_v1' => self::CONTRACT_V1,
+				'contract_v1_wrapper' => self::CONTRACT_V1_WRAPPER,
 			]);
 			add_action('wp_ajax_sbpr_import', [__CLASS__, 'ajax_import']);
 		}
@@ -456,8 +462,8 @@ final class SB_Punks_Registry {
 	public static function shortcode_home($atts = []) : string {
 		$opts = self::get_options();
 
-		wp_enqueue_style('sbpr-home', plugin_dir_url(__FILE__) . 'assets/home.css', [], '0.1.1');
-		wp_enqueue_script('sbpr-home', plugin_dir_url(__FILE__) . 'assets/home.js', [], '0.1.1', true);
+		wp_enqueue_style('sbpr-home', plugin_dir_url(__FILE__) . 'assets/home.css', [], '0.1.3');
+		wp_enqueue_script('sbpr-home', plugin_dir_url(__FILE__) . 'assets/home.js', [], '0.1.3', true);
 
 		$punks = self::get_punks_for_mode($opts['mode']);
 		$ids = array_map(function($p){ return (int)get_post_meta($p->ID, self::M_PUNK_ID, true); }, $punks);
@@ -468,6 +474,8 @@ final class SB_Punks_Registry {
 			'logo_hover' => $opts['logo_hover'],
 			'about_url' => site_url('/about/'),
 			'ids' => array_values(array_unique($ids)),
+				'rpc_urls' => self::rpc_urls(),
+				'data_contract' => self::CONTRACT_DATA,
 			'svg_endpoint' => rest_url(self::REST_NS . '/punk-svg/'), // + {id}
 		]);
 
@@ -499,6 +507,45 @@ final class SB_Punks_Registry {
 					</div>
 				</div>
 			</main>
+		</div>
+		<?php
+		return (string)ob_get_clean();
+	}
+
+
+	/* =========================
+	   Shortcode: Punks grid
+	========================= */
+
+	public static function shortcode_grid($atts = []) : string {
+		$opts = self::get_options();
+		$punks = self::get_punks_for_mode($opts['mode']);
+
+		$items = [];
+		foreach ($punks as $p) {
+			$id = (int) get_post_meta($p->ID, self::M_PUNK_ID, true);
+			if ($id < 0) continue;
+			$items[] = [
+				'id'  => $id,
+				'url' => get_permalink($p->ID),
+			];
+		}
+
+		usort($items, function($a, $b) {
+			return (int)$a['id'] <=> (int)$b['id'];
+		});
+
+		ob_start();
+		?>
+		<div class="sbpr-grid-wrap" style="max-width:1200px;margin:0 auto;padding:48px 24px;">
+			<h1 style="margin:0 0 18px;">The Punks</h1>
+			<div class="sbpr-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:16px;">
+				<?php foreach ($items as $it): ?>
+					<a class="sbpr-grid__tile" href="<?php echo esc_url($it['url']); ?>" style="display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,0.12);border-radius:12px;aspect-ratio:1/1;background:#fff;text-decoration:none;color:inherit;">
+						<span style="font:14px/1.2 ui-monospace,monospace;opacity:0.8;">#<?php echo esc_html($it['id']); ?></span>
+					</a>
+				<?php endforeach; ?>
+			</div>
 		</div>
 		<?php
 		return (string)ob_get_clean();
@@ -542,13 +589,9 @@ final class SB_Punks_Registry {
 	private static function get_svg_for_punk_id(int $punk_id) : string {
 		$post_id = self::find_post_id_by_punk_id($punk_id);
 		if (!$post_id) return '';
+		// Cache-only: do NOT attempt server-side RPC fetch here (many hosts block outbound requests).
 		$svg = (string) get_post_meta($post_id, self::M_SVG, true);
-		if ($svg) return $svg;
-
-		// Lazy fetch on first request, then cache.
-		$svg = self::fetch_punk_svg($punk_id);
-		if ($svg) update_post_meta($post_id, self::M_SVG, $svg);
-		return $svg;
+		return $svg ?: '';
 	}
 
 	private static function find_post_id_by_punk_id(int $punk_id) : int {
@@ -582,59 +625,55 @@ final class SB_Punks_Registry {
 	   AJAX Import
 	========================= */
 
-	public static function ajax_import() : void {
+			public static function ajax_import() : void {
 		if (!current_user_can('edit_posts')) wp_send_json_error(['error' => 'forbidden'], 403);
 		check_ajax_referer('sbpr_import', 'nonce');
 
 		$post_id = isset($_POST['post_id']) ? (int)$_POST['post_id'] : 0;
 		if (!$post_id || get_post_type($post_id) !== self::CPT) wp_send_json_error(['error' => 'bad_post'], 400);
 
-		$opts = self::get_options();
-		$punk_id = (int) get_post_meta($post_id, self::M_PUNK_ID, true);
+		// Client-side import: the browser fetches on-chain data (works even when the host blocks outbound HTTP),
+		// then posts the results here to be saved as post meta.
+		$raw = isset($_POST['payload']) ? (string) wp_unslash($_POST['payload']) : '';
+		$payload = $raw ? json_decode($raw, true) : null;
+		if (!is_array($payload)) wp_send_json_error(['error' => 'bad_payload'], 400);
 
-		if ($punk_id < 0 || $punk_id > 9999) wp_send_json_error(['error' => 'bad_punk_id'], 400);
+		$map = [
+			'svg' => self::M_SVG,
+			'v1_claim_wallet' => self::M_V1_CLAIM_WALLET,
+			'v1_claim_block'  => self::M_V1_CLAIM_BLOCK,
+			'v1_claim_ts'     => self::M_V1_CLAIM_TS,
+			'v2_burn_from'    => self::M_V2_BURN_FROM,
+			'v2_burn_to'      => self::M_V2_BURN_TO,
+			'v2_burn_block'   => self::M_V2_BURN_BLOCK,
+			'v2_burn_ts'      => self::M_V2_BURN_TS,
+			'v1_wrapped'      => self::M_V1_WRAPPED,
+			'v1_wrapped_owner'=> self::M_V1_WRAPPED_OWNER,
+		];
 
-		$errors = [];
+		$updated = [];
+		foreach ($map as $k => $meta_key) {
+			if (!array_key_exists($k, $payload)) continue;
 
-		// SVG
-		$svg = self::fetch_punk_svg($punk_id);
-		if ($svg) update_post_meta($post_id, self::M_SVG, $svg);
-		else $errors[] = 'svg';
+			$v = $payload[$k];
 
-		// V1 claim (wallet + timestamp)
-		$claim = self::get_v1_claim_info($punk_id);
-		if ($claim) {
-			update_post_meta($post_id, self::M_V1_CLAIM_WALLET, $claim['wallet']);
-			update_post_meta($post_id, self::M_V1_CLAIM_BLOCK, (int)$claim['block']);
-			update_post_meta($post_id, self::M_V1_CLAIM_TS, (int)$claim['ts']);
-		} else {
-			$errors[] = 'v1_claim';
-		}
+			// Never clobber existing content with empty values.
+			if (is_string($v)) {
+				$v = trim($v);
+				if ($v === '') continue;
+			}
+			if ($v === null) continue;
 
-		// V2 burn (last transfer to current owner) - derived from owner mapping.
-		$burn = self::get_v2_last_transfer_info($punk_id);
-		if ($burn) {
-			update_post_meta($post_id, self::M_V2_BURN_FROM, $burn['from']);
-			update_post_meta($post_id, self::M_V2_BURN_TO, $burn['to']);
-			update_post_meta($post_id, self::M_V2_BURN_BLOCK, (int)$burn['block']);
-			update_post_meta($post_id, self::M_V2_BURN_TS, (int)$burn['ts']);
-		} else {
-			$errors[] = 'v2_burn';
-		}
+			// Basic SVG sanity.
+			if ($k === 'svg' && is_string($v) && stripos($v, '<svg') === false) continue;
 
-		// V1 wrapped?
-		$wrapped = self::get_v1_wrap_status($punk_id);
-		if ($wrapped !== null) {
-			update_post_meta($post_id, self::M_V1_WRAPPED, $wrapped['wrapped'] ? 1 : 0);
-			update_post_meta($post_id, self::M_V1_WRAPPED_OWNER, $wrapped['owner'] ?? '');
-		} else {
-			$errors[] = 'v1_wrapped';
+			update_post_meta($post_id, $meta_key, $v);
+			$updated[] = $k;
 		}
 
 		wp_send_json_success([
 			'ok' => true,
-			'punk_id' => $punk_id,
-			'errors' => $errors,
+			'updated' => $updated,
 		]);
 	}
 
