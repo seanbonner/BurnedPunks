@@ -1,0 +1,20 @@
+
+/* SB Punks Registry Hotfix - minimal styling to avoid blank pages */
+.sbpr-home { background:#fff; color:#000; min-height: 70vh; }
+.sbpr-header { padding: 64px 24px 40px; display:flex; justify-content:center; }
+.sbpr-logo { display:inline-block; position:relative; }
+.sbpr-logo__img { display:block; height:auto; max-width:min(520px, 80vw); }
+.sbpr-logo__img--hover { position:absolute; inset:0; opacity:0; transition:opacity .12s ease; }
+.sbpr-logo:hover .sbpr-logo__img--hover { opacity:1; }
+.sbpr-logo:hover .sbpr-logo__img--default { opacity:0; }
+.sbpr-logo__text { font-size: 28px; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid rgba(0,0,0,.25); }
+
+.sbpr-mosaic { padding: 0 24px 64px; }
+.sbpr-mosaic__grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(12px, 1fr)); gap: 2px; }
+@media (max-width: 520px){ .sbpr-mosaic__grid { grid-template-columns: repeat(auto-fill, minmax(10px, 1fr)); } }
+
+.sbpr-tile { display:block; aspect-ratio: 1 / 1; background: rgba(0,0,0,.18); }
+.sbpr-tile:hover { background: rgba(0,0,0,.28); }
+
+.sbpr-empty { padding: 24px; opacity: .7; text-align:center; }
+.sbpr-gridwrap { padding: 24px; background:#fff; }
