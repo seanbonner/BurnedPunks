@@ -254,3 +254,11 @@
     grid-template-columns: 120px 1fr;
   }
 }
+
+
+/* Single: story starts below both columns */
+.sbpr-single__story--full{
+  grid-column: 1 / -1;
+  max-width: 78ch;
+  margin-top: clamp(18px, 3vw, 34px);
+}

@@ -109,11 +109,10 @@ function sbpr_wallet_link($wallet, $name = '') {
 						<?php endif; ?>
 					</dd>
 				</div>
-			</dl>
+			</dl></div>
 
-			<div class="sbpr-single__story">
-				<?php echo wp_kses_post($story_html); ?>
-			</div>
+		<div class="sbpr-single__story sbpr-single__story--full">
+			<?php echo wp_kses_post($story_html); ?>
 		</div>
 	</div>
 </main>

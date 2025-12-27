@@ -64,8 +64,8 @@
 
     const header = document.querySelector('.sbpr-header');
     const headerH = header ? header.getBoundingClientRect().height : 0;
-    const targetH = Math.max(320, window.innerHeight - headerH - 24);
-    const rows = Math.max(2, Math.ceil((targetH + gap) / (tile + gap)));
+    const targetH = Math.max(320, window.innerHeight - headerH - 48);
+    const rows = Math.max(2, Math.floor((targetH + gap) / (tile + gap)));
     const total = cols * rows;
 
     grid.style.setProperty('--sbpr-tile', tile + 'px');
