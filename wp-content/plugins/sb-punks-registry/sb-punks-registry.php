@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks + single punk layout.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Author: SB
  */
 
@@ -14,8 +14,6 @@ final class SB_Punks_Registry {
 
 	// Contracts (mainnet)
 	const WRAPPER_CONTRACT = '0x282BDD42f4eb70e7A9D9F40c8fEA0825B7f68C5D';
-	const PUNKS_DATA_CONTRACT = '0x16F5A35647D6F03D5D3da7b35409D65ba03aF3B2';
-	const ETH_RPC_URL = 'https://eth.llamarpc.com'; // Public RPC endpoint
 
 	// CryptoPunks site helpers
 	const CP_DETAILS_BASE = 'https://cryptopunks.app/cryptopunks/details/';
@@ -174,7 +172,7 @@ final class SB_Punks_Registry {
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.3.0';
+		$ver = '0.3.1';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
 	}
@@ -664,109 +662,48 @@ final class SB_Punks_Registry {
 	}
 
 	// -------------------------
-	// On-chain image generation
+	// Punk image generation
 	// -------------------------
 
+	// Larva Labs official punk images
+	const PUNK_IMAGE_BASE = 'https://www.larvalabs.com/public/images/cryptopunks/punk';
+
 	/**
-	 * Fetch punk SVG from the on-chain CryptoPunks Data contract
+	 * Fetch punk PNG from Larva Labs
 	 */
-	private static function fetch_punk_svg(int $punk_id) : string {
+	private static function fetch_punk_image(int $punk_id) : string {
 		if ($punk_id < 0 || $punk_id > 9999) return '';
 
-		// Function selector for punkImageSvg(uint16) = 0xe6d5b535
-		// Encode the punk_id as uint16 (padded to 32 bytes)
-		$punk_hex = str_pad(dechex($punk_id), 64, '0', STR_PAD_LEFT);
-		$data = '0xe6d5b535' . $punk_hex;
+		// Format: punk0001.png, punk0123.png, punk9999.png
+		$padded = str_pad((string)$punk_id, 4, '0', STR_PAD_LEFT);
+		$url = self::PUNK_IMAGE_BASE . $padded . '.png';
 
-		$payload = [
-			'jsonrpc' => '2.0',
-			'method' => 'eth_call',
-			'params' => [
-				[
-					'to' => self::PUNKS_DATA_CONTRACT,
-					'data' => $data,
-				],
-				'latest'
-			],
-			'id' => 1,
-		];
-
-		$response = wp_remote_post(self::ETH_RPC_URL, [
-			'headers' => ['Content-Type' => 'application/json'],
-			'body' => wp_json_encode($payload),
+		$response = wp_remote_get($url, [
 			'timeout' => 30,
 		]);
 
 		if (is_wp_error($response)) {
-			error_log('SBPR: RPC request failed - ' . $response->get_error_message());
+			error_log('SBPR: Failed to fetch punk image - ' . $response->get_error_message());
+			return '';
+		}
+
+		$code = wp_remote_retrieve_response_code($response);
+		if ($code !== 200) {
+			error_log('SBPR: Punk image returned HTTP ' . $code . ' for punk ' . $punk_id);
 			return '';
 		}
 
 		$body = wp_remote_retrieve_body($response);
-		$json = json_decode($body, true);
-
-		if (!isset($json['result']) || strlen($json['result']) < 10) {
-			error_log('SBPR: Invalid RPC response for punk ' . $punk_id);
+		if (empty($body)) {
+			error_log('SBPR: Empty response for punk ' . $punk_id);
 			return '';
 		}
 
-		// Decode the hex result - it's ABI-encoded string
-		$hex = substr($json['result'], 2); // Remove 0x prefix
-
-		// ABI decode: first 32 bytes = offset, next 32 bytes = length, then data
-		if (strlen($hex) < 128) return '';
-
-		$offset = hexdec(substr($hex, 0, 64));
-		$length = hexdec(substr($hex, 64, 64));
-
-		if ($length <= 0 || $length > 100000) return '';
-
-		$svg_hex = substr($hex, 128, $length * 2);
-		$svg = '';
-		for ($i = 0; $i < strlen($svg_hex); $i += 2) {
-			$svg .= chr(hexdec(substr($svg_hex, $i, 2)));
-		}
-
-		return $svg;
+		return $body;
 	}
 
 	/**
-	 * Convert SVG string to PNG and return path to temp file
-	 */
-	private static function svg_to_png(string $svg, int $size = 480) : string {
-		if (empty($svg)) return '';
-
-		// Try Imagick first (best quality)
-		if (class_exists('Imagick')) {
-			try {
-				$im = new Imagick();
-				$im->setBackgroundColor(new ImagickPixel('transparent'));
-				$im->readImageBlob($svg);
-				$im->setImageFormat('png');
-
-				// Scale up for crisp pixels
-				$im->resizeImage($size, $size, Imagick::FILTER_POINT, 1);
-
-				$tmp = wp_tempnam('punk_') . '.png';
-				$im->writeImage($tmp);
-				$im->destroy();
-
-				return $tmp;
-			} catch (Exception $e) {
-				error_log('SBPR: Imagick conversion failed - ' . $e->getMessage());
-			}
-		}
-
-		// Fallback: save SVG and try GD with external converter or just use SVG
-		// For now, save as SVG if Imagick not available
-		$tmp = wp_tempnam('punk_') . '.svg';
-		file_put_contents($tmp, $svg);
-
-		return $tmp;
-	}
-
-	/**
-	 * Generate punk image from on-chain data and set as featured image
+	 * Generate punk image and set as featured image
 	 */
 	public static function generate_punk_image(int $post_id, int $punk_id) : bool {
 		// Don't regenerate if featured image already exists
@@ -774,21 +711,20 @@ final class SB_Punks_Registry {
 			return true;
 		}
 
-		$svg = self::fetch_punk_svg($punk_id);
-		if (empty($svg)) {
-			error_log('SBPR: Could not fetch SVG for punk ' . $punk_id);
+		$image_data = self::fetch_punk_image($punk_id);
+		if (empty($image_data)) {
+			error_log('SBPR: Could not fetch image for punk ' . $punk_id);
 			return false;
 		}
 
-		$tmp_file = self::svg_to_png($svg, 480);
-		if (empty($tmp_file) || !file_exists($tmp_file)) {
-			error_log('SBPR: Could not convert punk ' . $punk_id . ' to image');
+		// Save to temp file
+		$tmp_file = wp_tempnam('punk_') . '.png';
+		if (file_put_contents($tmp_file, $image_data) === false) {
+			error_log('SBPR: Could not write temp file for punk ' . $punk_id);
 			return false;
 		}
 
-		// Determine file type
-		$is_svg = (pathinfo($tmp_file, PATHINFO_EXTENSION) === 'svg');
-		$filename = 'punk-' . $punk_id . ($is_svg ? '.svg' : '.png');
+		$filename = 'punk-' . $punk_id . '.png';
 
 		// Upload to media library
 		$file_array = [
