@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks + single punk layout.
- * Version: 0.3.1
+ * Version: 0.3.2
  * Author: SB
  */
 
@@ -172,7 +172,7 @@ final class SB_Punks_Registry {
 	}
 
 	public static function enqueue_assets() : void {
-		$ver = '0.3.1';
+		$ver = '0.3.2';
 		wp_enqueue_style('sbpr', plugins_url('assets/sbpr.css', __FILE__), [], $ver);
 		wp_enqueue_script('sbpr', plugins_url('assets/sbpr.js', __FILE__), [], $ver, true);
 	}
@@ -669,9 +669,9 @@ final class SB_Punks_Registry {
 	const PUNK_IMAGE_BASE = 'https://www.larvalabs.com/public/images/cryptopunks/punk';
 
 	/**
-	 * Fetch punk PNG from Larva Labs
+	 * Fetch punk PNG from Larva Labs and scale up with nearest-neighbor
 	 */
-	private static function fetch_punk_image(int $punk_id) : string {
+	private static function fetch_punk_image(int $punk_id, int $target_size = 480) : string {
 		if ($punk_id < 0 || $punk_id > 9999) return '';
 
 		// Format: punk0001.png, punk0123.png, punk9999.png
@@ -699,7 +699,82 @@ final class SB_Punks_Registry {
 			return '';
 		}
 
+		// Scale up the 24x24 image to target size using nearest-neighbor
+		$scaled = self::scale_image_nearest_neighbor($body, $target_size);
+		if (!empty($scaled)) {
+			return $scaled;
+		}
+
+		// Fallback to original if scaling fails
 		return $body;
+	}
+
+	/**
+	 * Scale PNG image data using nearest-neighbor interpolation
+	 */
+	private static function scale_image_nearest_neighbor(string $image_data, int $target_size) : string {
+		// Try Imagick first (best quality control)
+		if (class_exists('Imagick')) {
+			try {
+				$im = new Imagick();
+				$im->readImageBlob($image_data);
+				$im->setImageInterpolateMethod(Imagick::INTERPOLATE_NEAREST_NEIGHBOR);
+				$im->resizeImage($target_size, $target_size, Imagick::FILTER_POINT, 1);
+				$im->setImageFormat('png');
+				$result = $im->getImageBlob();
+				$im->destroy();
+				return $result;
+			} catch (Exception $e) {
+				error_log('SBPR: Imagick scaling failed - ' . $e->getMessage());
+			}
+		}
+
+		// Fallback to GD
+		if (function_exists('imagecreatefrompng')) {
+			$src = @imagecreatefromstring($image_data);
+			if ($src === false) {
+				error_log('SBPR: GD could not read image');
+				return '';
+			}
+
+			$src_w = imagesx($src);
+			$src_h = imagesy($src);
+
+			$dst = imagecreatetruecolor($target_size, $target_size);
+			if ($dst === false) {
+				imagedestroy($src);
+				return '';
+			}
+
+			// Preserve transparency
+			imagealphablending($dst, false);
+			imagesavealpha($dst, true);
+			$transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+			imagefill($dst, 0, 0, $transparent);
+
+			// Scale using nearest-neighbor (pixel-by-pixel copy)
+			$scale = $target_size / $src_w;
+			for ($y = 0; $y < $target_size; $y++) {
+				for ($x = 0; $x < $target_size; $x++) {
+					$src_x = (int)floor($x / $scale);
+					$src_y = (int)floor($y / $scale);
+					$color = imagecolorat($src, $src_x, $src_y);
+					imagesetpixel($dst, $x, $y, $color);
+				}
+			}
+
+			ob_start();
+			imagepng($dst);
+			$result = ob_get_clean();
+
+			imagedestroy($src);
+			imagedestroy($dst);
+
+			return $result;
+		}
+
+		error_log('SBPR: No image library available for scaling');
+		return '';
 	}
 
 	/**
