@@ -261,4 +261,15 @@
   grid-column: 1 / -1;
   max-width: 78ch;
   margin-top: clamp(18px, 3vw, 34px);
+  order: 3;
+}
+
+/* Force pixelated rendering on all punk images */
+.sbpr-single__img,
+.sbpr-tile__img,
+.sbpr-index__img,
+img[src*="punk-"] {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
 }
