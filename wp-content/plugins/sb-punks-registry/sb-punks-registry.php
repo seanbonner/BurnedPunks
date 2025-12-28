@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks + single punk layout.
- * Version: 0.3.3
+ * Version: 0.3.4
  * Author: SB
  */
 
@@ -62,6 +62,9 @@ final class SB_Punks_Registry {
 		add_action('admin_init', [__CLASS__, 'register_settings']);
 		add_action('add_meta_boxes', [__CLASS__, 'add_meta_boxes']);
 		add_action('save_post_' . self::PT, [__CLASS__, 'save_meta'], 10, 3);
+
+		// Disable thumbnail generation for punk images to preserve crisp pixels
+		add_filter('intermediate_image_sizes_advanced', [__CLASS__, 'skip_punk_thumbnails'], 10, 3);
 	}
 
 	public static function activate() : void {
@@ -95,6 +98,17 @@ final class SB_Punks_Registry {
 		$post = get_post($post_id);
 		if ($post && $post->post_type === self::PT) return false;
 		return $open;
+	}
+
+	/**
+	 * Skip thumbnail generation for punk images (filenames starting with "punk-").
+	 * This preserves crisp pixel art by only using the full-size 480x480 image.
+	 */
+	public static function skip_punk_thumbnails($sizes, $image_meta, $attachment_id = 0) {
+		if (!empty($image_meta['file']) && preg_match('/punk-\d{4}\.png$/i', $image_meta['file'])) {
+			return []; // No intermediate sizes for punk images
+		}
+		return $sizes;
 	}
 
 	public static function get_settings() : array {
