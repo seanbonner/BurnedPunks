@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SB Punks Registry
  * Description: BurnedPunks/MuseumPunks registry + front-page mosaic + numeric permalinks + single punk layout.
- * Version: 0.3.4
+ * Version: 0.3.5
  * Author: SB
  */
 
@@ -26,6 +26,7 @@ final class SB_Punks_Registry {
 
 	const META_CLAIMER_WALLET = '_sbpr_claimer_wallet';
 	const META_CLAIMER_NAME   = '_sbpr_claimer_name';
+	const META_CLAIM_DATE     = '_sbpr_claim_date';     // Day of claim (1-30, June 2017)
 	const META_BURNER_WALLET  = '_sbpr_burner_wallet';
 	const META_BURNER_NAME    = '_sbpr_burner_name';
 	const META_FINAL_WALLET   = '_sbpr_final_wallet';
@@ -639,6 +640,7 @@ final class SB_Punks_Registry {
 	public static function render_party_box($post) : void {
 		$claimer_wallet = (string)get_post_meta($post->ID, self::META_CLAIMER_WALLET, true);
 		$claimer_name   = (string)get_post_meta($post->ID, self::META_CLAIMER_NAME, true);
+		$claim_date     = (string)get_post_meta($post->ID, self::META_CLAIM_DATE, true);
 		$burner_wallet  = (string)get_post_meta($post->ID, self::META_BURNER_WALLET, true);
 		$burner_name    = (string)get_post_meta($post->ID, self::META_BURNER_NAME, true);
 		$final_wallet   = (string)get_post_meta($post->ID, self::META_FINAL_WALLET, true);
@@ -648,6 +650,17 @@ final class SB_Punks_Registry {
 
 		self::field_row('Claimer wallet', 'sbpr_claimer_wallet', $claimer_wallet, '0x...');
 		self::field_row('Claimer name (optional)', 'sbpr_claimer_name', $claimer_name, 'Psyborg');
+		?>
+		<p style="margin:0 0 12px;">
+			<label><strong>Claim Date (June 2017)</strong></label><br/>
+			<select name="sbpr_claim_date" style="width:100%;">
+				<option value="">-- Select day --</option>
+				<?php for ($d = 1; $d <= 30; $d++): ?>
+					<option value="<?php echo $d; ?>" <?php selected($claim_date, (string)$d); ?>>June <?php echo $d; ?>, 2017</option>
+				<?php endfor; ?>
+			</select>
+		</p>
+		<?php
 
 		echo '<hr/>';
 
@@ -875,6 +888,7 @@ final class SB_Punks_Registry {
 		// Participants
 		$claimer_wallet = isset($_POST['sbpr_claimer_wallet']) ? sanitize_text_field((string)$_POST['sbpr_claimer_wallet']) : '';
 		$claimer_name   = isset($_POST['sbpr_claimer_name']) ? sanitize_text_field((string)$_POST['sbpr_claimer_name']) : '';
+		$claim_date     = isset($_POST['sbpr_claim_date']) ? absint($_POST['sbpr_claim_date']) : 0;
 		$burner_wallet  = isset($_POST['sbpr_burner_wallet']) ? sanitize_text_field((string)$_POST['sbpr_burner_wallet']) : '';
 		$burner_name    = isset($_POST['sbpr_burner_name']) ? sanitize_text_field((string)$_POST['sbpr_burner_name']) : '';
 		$final_wallet   = isset($_POST['sbpr_final_wallet']) ? sanitize_text_field((string)$_POST['sbpr_final_wallet']) : '';
@@ -882,6 +896,11 @@ final class SB_Punks_Registry {
 
 		if ($claimer_wallet) update_post_meta($post_id, self::META_CLAIMER_WALLET, strtolower($claimer_wallet));
 		if ($claimer_name !== '') update_post_meta($post_id, self::META_CLAIMER_NAME, $claimer_name);
+		if ($claim_date >= 1 && $claim_date <= 30) {
+			update_post_meta($post_id, self::META_CLAIM_DATE, (string)$claim_date);
+		} elseif ($claim_date === 0) {
+			delete_post_meta($post_id, self::META_CLAIM_DATE);
+		}
 
 		if ($burner_wallet) update_post_meta($post_id, self::META_BURNER_WALLET, strtolower($burner_wallet));
 		if ($burner_name !== '') update_post_meta($post_id, self::META_BURNER_NAME, $burner_name);

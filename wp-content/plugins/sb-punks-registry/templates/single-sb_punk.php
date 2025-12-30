@@ -17,6 +17,7 @@ $burn_date = (string)get_post_meta($post_id, SB_Punks_Registry::META_BURN_DATE, 
 
 $claimer_wallet = (string)get_post_meta($post_id, SB_Punks_Registry::META_CLAIMER_WALLET, true);
 $claimer_name   = (string)get_post_meta($post_id, SB_Punks_Registry::META_CLAIMER_NAME, true);
+$claim_date     = (string)get_post_meta($post_id, SB_Punks_Registry::META_CLAIM_DATE, true);
 $burner_wallet  = (string)get_post_meta($post_id, SB_Punks_Registry::META_BURNER_WALLET, true);
 $burner_name    = (string)get_post_meta($post_id, SB_Punks_Registry::META_BURNER_NAME, true);
 $final_wallet   = (string)get_post_meta($post_id, SB_Punks_Registry::META_FINAL_WALLET, true);
@@ -75,6 +76,13 @@ function sbpr_wallet_link($wallet, $name = '') {
 					<div class="sbpr-single__fact">
 						<dt>Claimer:</dt>
 						<dd><?php echo sbpr_wallet_link($claimer_wallet, $claimer_name); ?></dd>
+					</div>
+				<?php endif; ?>
+
+				<?php if ($claim_date): ?>
+					<div class="sbpr-single__fact">
+						<dt>Claimed:</dt>
+						<dd>June <?php echo esc_html($claim_date); ?>, 2017</dd>
 					</div>
 				<?php endif; ?>
 
