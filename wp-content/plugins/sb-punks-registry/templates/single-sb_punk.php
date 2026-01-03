@@ -51,9 +51,22 @@ $story_html = SB_Punks_Registry::extract_story_html((string)get_post_field('post
 function sbpr_wallet_link($wallet, $name = '') {
 	$wallet = trim((string)$wallet);
 	if (!$wallet) return '';
-	$text = $name ? $name : $wallet;
 	$url = SB_Punks_Registry::cp_account_url($wallet);
-	return '<a href="'.esc_url($url).'">'.esc_html($text).'</a>';
+
+	// If there's a name, just show the name (no truncation needed)
+	if ($name) {
+		return '<a href="'.esc_url($url).'">'.esc_html($name).'</a>';
+	}
+
+	// For wallet addresses, show full on desktop, truncated on mobile
+	$short = strlen($wallet) > 10
+		? substr($wallet, 0, 6) . '…' . substr($wallet, -4)
+		: $wallet;
+
+	return '<a href="'.esc_url($url).'" class="sbpr-wallet-addr">'
+		. '<span class="sbpr-wallet-full">'.esc_html($wallet).'</span>'
+		. '<span class="sbpr-wallet-short">'.esc_html($short).'</span>'
+		. '</a>';
 }
 
 ?>
