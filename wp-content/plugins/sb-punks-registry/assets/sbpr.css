@@ -1,4 +1,4 @@
-/* SB Punks Registry 0.1.11 */
+/* SB Punks Registry 0.1.12 */
 
 /* Front page: kill theme header/nav/logo wrappers. */
 .sbpr-front header#masthead,
@@ -177,6 +177,7 @@
 
 .sbpr-single__content{
   order: 1;
+  min-width: 0; /* Allow flex/grid child to shrink below content size */
 }
 
 .sbpr-single__imglink{
@@ -235,6 +236,8 @@
 
 .sbpr-single__facts dd{
   margin: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .sbpr-single__burned{
@@ -252,6 +255,9 @@
   margin: 0 0 12px;
 }
 
+/* Wallet address: show full by default, short on mobile */
+.sbpr-wallet-short { display: none; }
+
 /* Mobile: image first, then text */
 @media (max-width: 800px){
   .sbpr-single__wrap{
@@ -262,10 +268,10 @@
   .sbpr-single__fact{
     grid-template-columns: 120px 1fr;
   }
+  /* Show truncated wallet address on mobile */
+  .sbpr-wallet-full { display: none; }
+  .sbpr-wallet-short { display: inline; }
 }
-
-/* Wallet address: show full by default, short on mobile */
-.sbpr-wallet-short { display: none; }
 
 /* Small mobile: stack fact labels above values */
 @media (max-width: 480px){
@@ -276,9 +282,6 @@
     grid-template-columns: 1fr;
     gap: 2px;
   }
-  /* Show truncated wallet address on mobile */
-  .sbpr-wallet-full { display: none; }
-  .sbpr-wallet-short { display: inline; }
 }
 
 
