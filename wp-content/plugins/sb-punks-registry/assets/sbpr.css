@@ -255,6 +255,20 @@
   }
 }
 
+/* Small mobile: stack fact labels above values */
+@media (max-width: 480px){
+  .sbpr-single__wrap{
+    padding: 16px;
+  }
+  .sbpr-single__fact{
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .sbpr-single__facts dd{
+    word-break: break-all;
+  }
+}
+
 
 /* Single: story starts below both columns */
 .sbpr-single__story--full{
