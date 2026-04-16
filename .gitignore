@@ -10,7 +10,7 @@
 .Spotlight-V100
 .Trashes
 
-# Windows files (in case you ever work on Windows)
+# Windows files
 Thumbs.db
 Desktop.ini
 
@@ -26,3 +26,11 @@ Desktop.ini
 
 # Temporary files
 *.tmp
+
+# Node / Eleventy
+node_modules/
+_site/
+.cache/
+
+# Local-only source assets (kept out of git historically)
+bits/

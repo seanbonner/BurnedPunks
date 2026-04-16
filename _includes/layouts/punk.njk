@@ -1,0 +1,86 @@
+---
+layout: layouts/base.njk
+---
+{% set punkNum = id | string %}
+{% set label = "BURN" %}
+{% if intent == "accidental" %}{% set label = "ACCIDENTAL BURN" %}{% endif %}
+{% if intent == "intentional" %}{% set label = "INTENTIONAL BURN" %}{% endif %}
+
+<article class="punk-single">
+  <div class="punk-single__wrap">
+    <div class="punk-single__media">
+      <a class="punk-single__imglink" href="{{ site.cryptopunksDetailsBase }}{{ punkNum }}" aria-label="View on CryptoPunks">
+        <img class="punk-single__img" src="/images/punks/{{ punkNum }}.svg" alt="CryptoPunk #{{ punkNum }}" decoding="async" loading="eager">
+      </a>
+    </div>
+
+    <div class="punk-single__content">
+      <h1 class="punk-single__num">{{ punkNum }}</h1>
+      <div class="punk-single__label">{{ label }}</div>
+
+      <dl class="punk-single__facts">
+        {% if claimer_wallet or claimer_name %}
+        <div class="punk-single__fact">
+          <dt>Claimer:</dt>
+          <dd>
+            <a href="{{ site.cryptopunksAccountBase }}{{ claimer_wallet | lower }}">
+              {% if claimer_name %}{{ claimer_name }}{% else %}{{ claimer_wallet | shortWallet }}{% endif %}
+            </a>
+          </dd>
+        </div>
+        {% endif %}
+
+        {% if claim_date %}
+        <div class="punk-single__fact">
+          <dt>Claimed:</dt>
+          <dd>{{ claim_date | claimDateLabel }}</dd>
+        </div>
+        {% endif %}
+
+        {% if burner_wallet or burner_name %}
+        <div class="punk-single__fact">
+          <dt>Burner:</dt>
+          <dd>
+            <a href="{{ site.cryptopunksAccountBase }}{{ burner_wallet | lower }}">
+              {% if burner_name %}{{ burner_name }}{% else %}{{ burner_wallet | shortWallet }}{% endif %}
+            </a>
+          </dd>
+        </div>
+        {% endif %}
+
+        {% if burn_date %}
+        <div class="punk-single__fact">
+          <dt>Burned:</dt>
+          <dd class="punk-single__burned">{{ burn_date | formatBurnDate }}</dd>
+        </div>
+        {% endif %}
+
+        {% if final_wallet or final_name %}
+        <div class="punk-single__fact">
+          <dt>Final Location:</dt>
+          <dd>
+            <a href="{{ site.cryptopunksAccountBase }}{{ final_wallet | lower }}">
+              {% if final_name %}{{ final_name }}{% else %}{{ final_wallet | shortWallet }}{% endif %}
+            </a>
+          </dd>
+        </div>
+        {% endif %}
+
+        <div class="punk-single__fact">
+          <dt>V1:</dt>
+          <dd>
+            {% if v1_wrapped %}
+              <a href="{{ site.openseaAssetBase }}{{ site.wrapperContract }}/{{ punkNum }}">Wrapped</a>
+            {% else %}
+              Unwrapped
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="punk-single__story">
+      {{ content | safe }}
+    </div>
+  </div>
+</article>

@@ -1,0 +1,14 @@
+---
+permalink: /the-punks/
+title: The Punks
+layout: layouts/base.njk
+---
+<section class="punks-index">
+  {% for p in collections.punks %}
+    {% set pid = p.data.id | string %}
+    <a class="punks-index__card" href="/{{ pid }}/">
+      <img class="punks-index__img" src="/images/punks/{{ pid }}.svg" alt="CryptoPunk #{{ pid }}">
+      <span class="punks-index__num">{{ pid }}</span>
+    </a>
+  {% endfor %}
+</section>
