@@ -28,15 +28,6 @@ scripts/
 eleventy.config.mjs
 ```
 
-## Local development
-
-```
-npm install
-npm run serve
-```
-
-Opens `http://localhost:8080/` with live reload.
-
 ## Adding a new punk
 
 1. Create `punks/{id}.md` with the frontmatter schema below.
