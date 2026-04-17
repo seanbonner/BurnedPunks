@@ -48,7 +48,8 @@ burner_wallet: "0x..."                      # optional
 burner_name: "Optional Name"                # optional
 final_wallet: "0x..."                       # optional; where the punk ended up
 final_name: "Optional Name"                 # optional
-v1_wrapped: false                           # bool
+v1_wrapped: false                           # bool; if true, "Wrapped" renders as a link
+                                            # to the OpenSea wrapped-punks contract for this ID
 ---
 Narrative body in markdown. Inline links encouraged.
 ```
