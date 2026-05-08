@@ -58,6 +58,10 @@ Narrative body in markdown. Inline links encouraged.
 
 Every page is a `.md` file under `punks/` or `pages/`. Edit, commit, push. Cloudflare Pages rebuilds on every push to `main` (takes ~30–60 seconds). Every branch and PR gets its own `*.pages.dev` preview URL.
 
+## Notes
+
+On 2026-05-08 Node Foundation open-sourced a CryptoPunks marketplace frontend ([Infinite-Node/cryptopunks-marketplace-open](https://github.com/Infinite-Node/cryptopunks-marketplace-open)) and a public API at `cryptopunks.app/api` (full spec at `/llms.txt`). Not used here — `fetch-punk-svgs.mjs` already pulls onchain SVGs directly, and the curated `.md` frontmatter is the source of truth by design. Worth revisiting only if a future feature wants live owner / sale / ENS-resolution data at build time.
+
 ## License
 
 Content (prose, data, curation): [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/). See individual punk pages for sources.
