@@ -310,6 +310,10 @@ h1, h2, h3, h4, h5, h6 {
 
 .punk-single__burned { color: #C91E0C; font-weight: 800; }
 
+.punk-single__v1links { color: #888; white-space: nowrap; }
+.punk-single__v1links a { color: #638596; text-decoration: none; }
+.punk-single__v1links a:hover { text-decoration: underline; }
+
 .punk-single__story {
   grid-column: 1 / -1;
   max-width: 78ch;

@@ -69,11 +69,9 @@ layout: layouts/base.njk
         <div class="punk-single__fact">
           <dt>V1:</dt>
           <dd>
-            {% if v1_wrapped %}
-              <a href="{{ site.openseaAssetBase }}{{ site.wrapperContract }}/{{ punkNum }}">Wrapped</a>
-            {% else %}
-              Unwrapped
-            {% endif %}
+            {% if v1_wrapped %}wrapped{% else %}unwrapped{% endif %}
+            {% set osContract = site.v1WrappedContract if v1_wrapped else site.v1UnwrappedContract %}
+            <span class="punk-single__v1links">[<a href="{{ site.openseaItemBase }}{{ osContract }}/{{ punkNum }}">os</a> | <a href="{{ site.punksMarketBase }}{{ punkNum }}">pm</a> | <a href="{{ site.v1cryptopunksBase }}{{ punkNum }}">v1c</a>]</span>
           </dd>
         </div>
       </dl>
